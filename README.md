@@ -12,7 +12,9 @@ Sin instalaciones, sin librerías: perfecto para aprender a programar en familia
 5. Tu tropa dispara sola: ¡destruye a los zombis antes de que te muerdan!
 6. El **Sargento Patata 🥔** va contigo y lanza patatas explosivas que caen
    sobre el zombi más cercano y hacen daño en área. ¡BOOM!
-7. Cuidado con los **JEFES** morados: aguantan muchos disparos y muerden fuerte.
+7. Cuidado con los **JEFES** morados 👑: cuando llegan a su sitio se plantan
+   **6 segundos** a pelear y te atacan **escupiendo mocos azules** que
+   persiguen a tu tropa. ¡Esquívalos moviéndote sin parar!
 8. Pulsa la tecla **M** para silenciar o activar los sonidos.
 9. Si te quedas sin soldados... 💀 ¡fin de la partida!
 
@@ -43,6 +45,9 @@ números, guardad y recargad el navegador (F5) para ver qué pasa:
 - `vidaJefe: 100` → jefes casi indestructibles.
 - `cadenciaPatata: 30` → el Sargento Patata lanza sin parar.
 - `radioExplosion: 200` → explosiones de patata GIGANTES.
+- `duracionPelea: 720` → peleas de jefe de 12 segundos.
+- `cadaCuantoEscupe: 15` → el jefe escupe mocos como una metralleta.
+- `danoMoco: 5` → cada moco te quita 5 soldados, ¡mucho más peligroso!
 
 ### Retos de programación (de fácil a difícil)
 

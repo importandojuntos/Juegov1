@@ -24,11 +24,14 @@ const AJUSTES = {
   aceleracion: 0.00012,     // cuánto se acelera el juego con el tiempo
   vidaZombi: 3,             // disparos que aguanta un zombi normal
   vidaJefe: 40,             // disparos que aguanta un JEFE
-  cadaCuantoPuertas: 260,   // píxeles entre una fila de puertas y la siguiente
+  cadaCuantoPuertas: 430,   // píxeles entre una fila de puertas y la siguiente
   cadaCuantoZombis: 55,     // cada cuántos fotogramas puede salir un zombi
   cadenciaPatata: 90,       // cada cuántos fotogramas dispara el Sargento Patata
   danoPatata: 10,           // daño de la explosión de cada patata
   radioExplosion: 80,       // tamaño de la onda expansiva de la patata
+  duracionPelea: 360,       // fotogramas que dura la pelea de jefe (360 = 6 segundos)
+  cadaCuantoEscupe: 40,     // cada cuántos fotogramas escupe moco el jefe
+  danoMoco: 2,              // soldados que pierdes si te da un moco azul
 };
 
 // ---------- Estado del juego ----------
@@ -51,9 +54,20 @@ let balas = [];
 let zombis = [];
 let puertas = [];
 let patatas = [];             // ¡las patatas que lanza el Sargento Patata!
+let mocos = [];               // los mocos azules que escupen los jefes
 let particulas = [];          // trocitos de colores cuando explota algo
 let textos = [];              // números flotantes tipo "+5"
 let distanciaPuerta = 0;      // para saber cuándo toca crear más puertas
+
+// Piedritas decorativas del suelo (solo para que se vea bonito)
+const decoracion = [];
+for (let i = 0; i < 16; i++) {
+  decoracion.push({
+    x: Math.random() * ANCHO,
+    y: Math.random() * ALTO,
+    radio: 1.5 + Math.random() * 3,
+  });
+}
 
 // ================================================================
 //  SONIDOS: hechos con código, ¡sin archivos mp3!
@@ -114,6 +128,12 @@ const sonidos = {
   puertaMala:  () => pitido(220, 0.3, "sawtooth", 0.2, 90),
   mordisco:    () => { ruido(0.12, 0.25); pitido(130, 0.22, "square", 0.2, 55); },
   fin:         () => { pitido(400, 0.5, "sawtooth", 0.25, 90); setTimeout(() => ruido(0.6, 0.3), 250); },
+  peleaJefe:   () => {  // bocina de alarma: ¡empieza la pelea!
+    pitido(110, 0.28, "sawtooth", 0.3);
+    setTimeout(() => pitido(110, 0.28, "sawtooth", 0.3), 340);
+    setTimeout(() => pitido(175, 0.5, "sawtooth", 0.35), 680);
+  },
+  escupitajo:  () => pitido(320, 0.18, "sine", 0.2, 70), // "¡PTUU!" del moco
 };
 
 window.addEventListener("keydown", (e) => {
@@ -191,7 +211,26 @@ function crearZombi() {
     vidaMaxima: (esJefe ? AJUSTES.vidaJefe : AJUSTES.vidaZombi) + vidaExtra,
     esJefe: esJefe,
     balanceo: Math.random() * 6.28, // para que caminen tambaleándose
+    peleando: false,                // ¿está en plena pelea de jefe?
+    yaPeleo: false,                 // para que solo se plante una vez
+    tiempoPelea: 0,                 // fotogramas que le quedan de pelea
   });
+}
+
+// El jefe escupe un moco azul apuntando a donde está la tropa
+function escupirMoco(jefe) {
+  const dx = tropa.x - jefe.x;
+  const dy = tropa.y - jefe.y;
+  const distancia = Math.sqrt(dx * dx + dy * dy);
+  const rapidez = 4.5;
+  mocos.push({
+    x: jefe.x,
+    y: jefe.y + jefe.radio,
+    vx: (dx / distancia) * rapidez,  // dirección hacia la tropa
+    vy: (dy / distancia) * rapidez,
+    burbuja: Math.random() * 6.28,   // para que el moco tiemble
+  });
+  sonidos.escupitajo();
 }
 
 function crearExplosion(x, y, color, cantidad) {
@@ -352,11 +391,29 @@ function actualizar() {
     crearZombi();
   }
 
-  // --- Mover zombis ---
+  // --- Mover zombis (¡y peleas de jefe!) ---
   for (const zombi of zombis) {
-    zombi.y += velocidad * (zombi.esJefe ? 0.7 : 1); // los jefes son lentos
-    zombi.balanceo += 0.15;
-    zombi.x += Math.sin(zombi.balanceo) * 0.8; // caminan tambaleándose
+    // Cuando un jefe llega a su sitio, se planta 6 segundos a pelear
+    if (zombi.esJefe && !zombi.yaPeleo && zombi.y >= 170) {
+      zombi.yaPeleo = true;
+      zombi.peleando = true;
+      zombi.tiempoPelea = AJUSTES.duracionPelea;
+      crearTexto(ANCHO / 2, 300, "¡PELEA DE JEFE!", "#ffd94d");
+      sonidos.peleaJefe();
+    }
+
+    if (zombi.peleando) {
+      // El jefe se queda arriba, moviéndose de lado a lado y escupiendo
+      zombi.balanceo += 0.05;
+      zombi.x += Math.sin(zombi.balanceo) * 1.6;
+      zombi.tiempoPelea--;
+      if (zombi.tiempoPelea % AJUSTES.cadaCuantoEscupe === 0) escupirMoco(zombi);
+      if (zombi.tiempoPelea <= 0) zombi.peleando = false; // se cansó: vuelve a avanzar
+    } else {
+      zombi.y += velocidad * (zombi.esJefe ? 0.7 : 1); // los jefes son lentos
+      zombi.balanceo += 0.15;
+      zombi.x += Math.sin(zombi.balanceo) * 0.8; // caminan tambaleándose
+    }
 
     // ¿Un zombi tocó a la tropa? ¡Pierdes soldados!
     const dx = zombi.x - tropa.x;
@@ -391,6 +448,25 @@ function actualizar() {
   }
   zombis = zombis.filter((z) => z.vida > 0 && z.y < ALTO + 60);
 
+  // --- Mover los mocos azules (¡esquívalos!) ---
+  for (const moco of mocos) {
+    moco.x += moco.vx;
+    moco.y += moco.vy;
+    moco.burbuja += 0.25;
+
+    // ¿Un moco alcanzó a la tropa? ¡Splat!
+    const dx = moco.x - tropa.x;
+    const dy = moco.y - tropa.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 34) {
+      tropa.soldados -= AJUSTES.danoMoco;
+      moco.y = ALTO + 999; // el moco desaparece
+      crearExplosion(tropa.x, tropa.y, "#4dc3ff", 18);
+      crearTexto(tropa.x, tropa.y - 60, "-" + AJUSTES.danoMoco, "#4dc3ff");
+      sonidos.mordisco();
+    }
+  }
+  mocos = mocos.filter((m) => m.y < ALTO + 40 && m.x > -40 && m.x < ANCHO + 40);
+
   // --- Partículas y textos flotantes ---
   for (const p of particulas) {
     p.x += p.vx; p.y += p.vy; p.vida--;
@@ -409,10 +485,28 @@ function actualizar() {
 //  DIBUJAR: aquí se pinta todo en pantalla
 // ================================================================
 function dibujar() {
-  // Fondo: carretera oscura con líneas que bajan (da sensación de avanzar)
-  ctx.fillStyle = "#1a1a2e";
+  // Fondo: un degradado que va de noche cerrada a azul oscuro
+  const cielo = ctx.createLinearGradient(0, 0, 0, ALTO);
+  cielo.addColorStop(0, "#0e0e20");
+  cielo.addColorStop(0.6, "#1a1a30");
+  cielo.addColorStop(1, "#26263e");
+  ctx.fillStyle = cielo;
   ctx.fillRect(0, 0, ANCHO, ALTO);
 
+  // Piedritas del suelo que bajan (dan sensación de avanzar)
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  for (const piedra of decoracion) {
+    piedra.y += velocidad;
+    if (piedra.y > ALTO + 10) {
+      piedra.y = -10;
+      piedra.x = Math.random() * ANCHO;
+    }
+    ctx.beginPath();
+    ctx.arc(piedra.x, piedra.y, piedra.radio, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Líneas de la carretera
   ctx.strokeStyle = "rgba(255,255,255,0.12)";
   ctx.lineWidth = 4;
   ctx.setLineDash([30, 40]);
@@ -425,21 +519,44 @@ function dibujar() {
   }
   ctx.setLineDash([]);
 
-  // --- Puertas ---
+  // --- Puertas (con esquinas redondeadas y brillo de neón) ---
   for (const puerta of puertas) {
     const x = puerta.lado === "izquierda" ? 0 : ANCHO / 2;
-    ctx.fillStyle = puerta.usada
-      ? "rgba(120,120,120,0.25)"
-      : puerta.esBuena ? "rgba(77,166,255,0.45)" : "rgba(255,92,92,0.45)";
-    ctx.fillRect(x + 8, puerta.y - 28, ANCHO / 2 - 16, 56);
-    ctx.strokeStyle = puerta.esBuena ? "#4da6ff" : "#ff5c5c";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x + 8, puerta.y - 28, ANCHO / 2 - 16, 56);
+    const px = x + 10, py = puerta.y - 30, pancho = ANCHO / 2 - 20, palto = 60;
 
+    ctx.save();
+    if (!puerta.usada) {
+      // El brillo de neón alrededor
+      ctx.shadowColor = puerta.esBuena ? "#4da6ff" : "#ff5c5c";
+      ctx.shadowBlur = 18;
+    }
+    // Relleno con degradado
+    const degradado = ctx.createLinearGradient(0, py, 0, py + palto);
+    if (puerta.usada) {
+      degradado.addColorStop(0, "rgba(110,110,110,0.2)");
+      degradado.addColorStop(1, "rgba(70,70,70,0.2)");
+    } else if (puerta.esBuena) {
+      degradado.addColorStop(0, "rgba(90,180,255,0.6)");
+      degradado.addColorStop(1, "rgba(30,90,180,0.55)");
+    } else {
+      degradado.addColorStop(0, "rgba(255,110,110,0.6)");
+      degradado.addColorStop(1, "rgba(170,30,30,0.55)");
+    }
+    ctx.fillStyle = degradado;
+    ctx.beginPath();
+    ctx.roundRect(px, py, pancho, palto, 14);
+    ctx.fill();
+    ctx.strokeStyle = puerta.esBuena ? "#7fc4ff" : "#ff8f8f";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.restore();
+
+    // El texto de la puerta con su emoji
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 30px Trebuchet MS";
     ctx.textAlign = "center";
-    ctx.fillText(puerta.texto, x + ANCHO / 4, puerta.y + 11);
+    const icono = puerta.usada ? "" : puerta.esBuena ? "🪖 " : "☠️ ";
+    ctx.fillText(icono + puerta.texto, x + ANCHO / 4, puerta.y + 11);
   }
 
   // --- Balas ---
@@ -472,31 +589,104 @@ function dibujar() {
     ctx.fill();
   }
 
+  // --- Mocos azules (con brillo y temblor de gelatina) ---
+  for (const moco of mocos) {
+    const tamano = 10 + Math.sin(moco.burbuja) * 2;
+    ctx.save();
+    ctx.shadowColor = "#4dc3ff";
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = "#3fa9e8";
+    ctx.beginPath();
+    ctx.arc(moco.x, moco.y, tamano, 0, Math.PI * 2);
+    ctx.fill();
+    // Gotita que deja detrás
+    ctx.fillStyle = "rgba(77,195,255,0.5)";
+    ctx.beginPath();
+    ctx.arc(moco.x - moco.vx * 2.5, moco.y - moco.vy * 2.5, tamano * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // Brillito encima (como si fuera gelatina)
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.beginPath();
+    ctx.arc(moco.x - 3, moco.y - 3, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // --- Zombis ---
   for (const zombi of zombis) {
-    // Cuerpo
-    ctx.fillStyle = zombi.esJefe ? "#8033cc" : "#3d9940";
+    const colorCuerpo = zombi.esJefe ? "#8033cc" : "#3d9940";
+    const colorOscuro = zombi.esJefe ? "#5a2490" : "#2a6b2d";
+
+    // Brazos que se balancean (dos círculos a los lados)
+    const vaiven = Math.sin(zombi.balanceo) * zombi.radio * 0.3;
+    ctx.fillStyle = colorOscuro;
+    ctx.beginPath();
+    ctx.arc(zombi.x - zombi.radio * 0.95, zombi.y + vaiven, zombi.radio * 0.35, 0, Math.PI * 2);
+    ctx.arc(zombi.x + zombi.radio * 0.95, zombi.y - vaiven, zombi.radio * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cuerpo con degradado (más claro arriba, como si le diera la luz)
+    const luz = ctx.createRadialGradient(
+      zombi.x - zombi.radio * 0.3, zombi.y - zombi.radio * 0.4, zombi.radio * 0.2,
+      zombi.x, zombi.y, zombi.radio);
+    luz.addColorStop(0, zombi.esJefe ? "#a95ce8" : "#57c25b");
+    luz.addColorStop(1, colorCuerpo);
+    ctx.fillStyle = luz;
     ctx.beginPath();
     ctx.arc(zombi.x, zombi.y, zombi.radio, 0, Math.PI * 2);
     ctx.fill();
-    // Ojos
+    ctx.strokeStyle = colorOscuro;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Ojos rojos que brillan
+    ctx.save();
+    ctx.shadowColor = "#ff3333";
+    ctx.shadowBlur = 8;
     ctx.fillStyle = "#ff3333";
     const ojo = zombi.radio * 0.28;
     ctx.beginPath();
     ctx.arc(zombi.x - ojo * 1.4, zombi.y - ojo, ojo * 0.6, 0, Math.PI * 2);
     ctx.arc(zombi.x + ojo * 1.4, zombi.y - ojo, ojo * 0.6, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+
+    // Boca: abierta de par en par si está peleando (¡para escupir!)
+    ctx.fillStyle = "#1a0d26";
+    ctx.beginPath();
+    if (zombi.peleando) {
+      ctx.arc(zombi.x, zombi.y + zombi.radio * 0.4, zombi.radio * 0.35, 0, Math.PI * 2);
+    } else {
+      ctx.arc(zombi.x, zombi.y + zombi.radio * 0.35, zombi.radio * 0.3, 0, Math.PI);
+    }
+    ctx.fill();
+
+    // Corona de pinchos para el jefe
+    if (zombi.esJefe) {
+      ctx.fillStyle = "#ffd94d";
+      for (let i = -2; i <= 2; i++) {
+        const bx = zombi.x + i * zombi.radio * 0.35;
+        const by = zombi.y - zombi.radio + 2;
+        ctx.beginPath();
+        ctx.moveTo(bx - 5, by);
+        ctx.lineTo(bx, by - 12);
+        ctx.lineTo(bx + 5, by);
+        ctx.fill();
+      }
+    }
+
     // Barra de vida
     const anchoBarra = zombi.radio * 2;
-    ctx.fillStyle = "#333";
-    ctx.fillRect(zombi.x - zombi.radio, zombi.y - zombi.radio - 12, anchoBarra, 6);
-    ctx.fillStyle = "#ff9933";
-    ctx.fillRect(zombi.x - zombi.radio, zombi.y - zombi.radio - 12,
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(zombi.x - zombi.radio, zombi.y - zombi.radio - 14, anchoBarra, 6);
+    ctx.fillStyle = zombi.vida / zombi.vidaMaxima > 0.4 ? "#7fe37f" : "#ff9933";
+    ctx.fillRect(zombi.x - zombi.radio, zombi.y - zombi.radio - 14,
       anchoBarra * (zombi.vida / zombi.vidaMaxima), 6);
     if (zombi.esJefe) {
       ctx.fillStyle = "#ffd94d";
       ctx.font = "bold 16px Trebuchet MS";
-      ctx.fillText("JEFE", zombi.x, zombi.y - zombi.radio - 18);
+      ctx.textAlign = "center";
+      ctx.fillText(zombi.peleando ? "¡PELEANDO!" : "JEFE", zombi.x, zombi.y - zombi.radio - 22);
     }
   }
 
@@ -507,11 +697,23 @@ function dibujar() {
     const fila = Math.floor(i / columnas);
     const sx = tropa.x + (columna - 2) * 18;
     const sy = tropa.y + fila * 16;
+    // Fusil apuntando hacia arriba (solo la primera fila, que es la que dispara)
+    if (fila === 0) {
+      ctx.strokeStyle = "#333";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(sx + 4, sy - 2);
+      ctx.lineTo(sx + 4, sy - 14);
+      ctx.stroke();
+    }
     // Cuerpo
     ctx.fillStyle = "#4da6ff";
     ctx.beginPath();
     ctx.arc(sx, sy, 7, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = "#2d6b99";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     // Casco
     ctx.fillStyle = "#2d6b99";
     ctx.beginPath();
@@ -569,13 +771,37 @@ function dibujar() {
   }
   ctx.globalAlpha = 1;
 
-  // --- Marcador (arriba) ---
+  // --- Marcador (arriba, en paneles redondeados) ---
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.roundRect(10, 8, 150, 34, 17);
+  ctx.roundRect(ANCHO - 120, 8, 110, 34, 17);
+  ctx.fill();
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 22px Trebuchet MS";
+  ctx.font = "bold 20px Trebuchet MS";
   ctx.textAlign = "left";
-  ctx.fillText("⭐ " + puntos, 14, 32);
+  ctx.fillText("⭐ " + puntos, 24, 32);
   ctx.textAlign = "right";
-  ctx.fillText("🪖 " + tropa.soldados, ANCHO - 14, 32);
+  ctx.fillText("🪖 " + tropa.soldados, ANCHO - 24, 32);
+
+  // --- Barra gigante del jefe cuando hay pelea ---
+  const jefeEnPelea = zombis.find((z) => z.peleando);
+  if (jefeEnPelea) {
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.beginPath();
+    ctx.roundRect(ANCHO / 2 - 130, 52, 260, 22, 11);
+    ctx.fill();
+    ctx.fillStyle = "#b366ff";
+    ctx.beginPath();
+    ctx.roundRect(ANCHO / 2 - 126, 55, 252 * (jefeEnPelea.vida / jefeEnPelea.vidaMaxima), 16, 8);
+    ctx.fill();
+    ctx.fillStyle = "#ffd94d";
+    ctx.font = "bold 14px Trebuchet MS";
+    ctx.textAlign = "center";
+    // Cuenta atrás de la pelea en segundos
+    const segundos = Math.ceil(jefeEnPelea.tiempoPelea / 60);
+    ctx.fillText("👑 JEFE — " + segundos + "s", ANCHO / 2, 90);
+  }
 }
 
 // ================================================================
@@ -604,6 +830,7 @@ function empezarPartida() {
   zombis = [];
   puertas = [];
   patatas = [];
+  mocos = [];
   particulas = [];
   textos = [];
   distanciaPuerta = 0;
