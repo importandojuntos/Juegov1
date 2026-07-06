@@ -26,6 +26,9 @@ const AJUSTES = {
   vidaJefe: 40,             // disparos que aguanta un JEFE
   cadaCuantoPuertas: 260,   // píxeles entre una fila de puertas y la siguiente
   cadaCuantoZombis: 55,     // cada cuántos fotogramas puede salir un zombi
+  cadenciaPatata: 90,       // cada cuántos fotogramas dispara el Sargento Patata
+  danoPatata: 10,           // daño de la explosión de cada patata
+  radioExplosion: 80,       // tamaño de la onda expansiva de la patata
 };
 
 // ---------- Estado del juego ----------
@@ -47,9 +50,75 @@ const tropa = {
 let balas = [];
 let zombis = [];
 let puertas = [];
+let patatas = [];             // ¡las patatas que lanza el Sargento Patata!
 let particulas = [];          // trocitos de colores cuando explota algo
 let textos = [];              // números flotantes tipo "+5"
 let distanciaPuerta = 0;      // para saber cuándo toca crear más puertas
+
+// ================================================================
+//  SONIDOS: hechos con código, ¡sin archivos mp3!
+//  La Web Audio API genera ondas de sonido al vuelo.
+//  Pulsa la tecla M para silenciar/activar.
+// ================================================================
+let audio = null;             // el "altavoz" del navegador
+let silencio = false;
+
+function encenderAudio() {
+  // Los navegadores solo dejan sonar tras un clic del jugador
+  if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+// Un pitido: frecuencia (grave o agudo), duración en segundos,
+// tipo de onda y volumen. "deslizarA" hace que la nota suba o baje.
+function pitido(frecuencia, duracion, tipo, volumen, deslizarA) {
+  if (!audio || silencio) return;
+  const onda = audio.createOscillator();
+  const ganancia = audio.createGain();
+  onda.type = tipo;
+  onda.frequency.setValueAtTime(frecuencia, audio.currentTime);
+  if (deslizarA) onda.frequency.exponentialRampToValueAtTime(deslizarA, audio.currentTime + duracion);
+  ganancia.gain.setValueAtTime(volumen, audio.currentTime);
+  ganancia.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duracion);
+  onda.connect(ganancia);
+  ganancia.connect(audio.destination);
+  onda.start();
+  onda.stop(audio.currentTime + duracion);
+}
+
+// Ruido tipo "explosión": estática que se va apagando
+function ruido(duracion, volumen) {
+  if (!audio || silencio) return;
+  const muestras = Math.floor(audio.sampleRate * duracion);
+  const bufer = audio.createBuffer(1, muestras, audio.sampleRate);
+  const datos = bufer.getChannelData(0);
+  for (let i = 0; i < muestras; i++) {
+    datos[i] = (Math.random() * 2 - 1) * (1 - i / muestras);
+  }
+  const fuente = audio.createBufferSource();
+  fuente.buffer = bufer;
+  const ganancia = audio.createGain();
+  ganancia.gain.value = volumen;
+  fuente.connect(ganancia);
+  ganancia.connect(audio.destination);
+  fuente.start();
+}
+
+// Todos los sonidos del juego (¡prueba a cambiar los números!)
+const sonidos = {
+  disparo:     () => pitido(900, 0.06, "square", 0.04, 250),
+  lanzapatata: () => pitido(200, 0.25, "sine", 0.3, 600),      // "¡PLOP!" hacia arriba
+  explosion:   () => { ruido(0.35, 0.3); pitido(90, 0.35, "sawtooth", 0.25, 35); },
+  zombiMuere:  () => pitido(160, 0.18, "sawtooth", 0.15, 40),
+  jefeMuere:   () => { ruido(0.5, 0.35); pitido(70, 0.6, "sawtooth", 0.3, 25); },
+  puertaBuena: () => { pitido(523, 0.1, "sine", 0.25); setTimeout(() => pitido(784, 0.15, "sine", 0.25), 90); },
+  puertaMala:  () => pitido(220, 0.3, "sawtooth", 0.2, 90),
+  mordisco:    () => { ruido(0.12, 0.25); pitido(130, 0.22, "square", 0.2, 55); },
+  fin:         () => { pitido(400, 0.5, "sawtooth", 0.25, 90); setTimeout(() => ruido(0.6, 0.3), 250); },
+};
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "m" || e.key === "M") silencio = !silencio;
+});
 
 // ================================================================
 //  CONTROLES: ratón, dedo y teclado
@@ -142,6 +211,57 @@ function crearTexto(x, y, mensaje, color) {
 }
 
 // ================================================================
+//  EL SARGENTO PATATA 🥔
+//  Un soldado especial que va junto a la tropa y lanza patatas
+//  por el aire. Cuando caen... ¡BOOM! Explotan y dañan a todos
+//  los zombis cercanos.
+// ================================================================
+
+// ¿Dónde está el sargento? Siempre a la derecha de la tropa
+function posicionSargento() {
+  return { x: tropa.x + 58, y: tropa.y + 6 };
+}
+
+function lanzarPatata(objetivo) {
+  const inicio = posicionSargento();
+  const vuelo = 45;        // fotogramas que tarda la patata en llegar
+  const gravedad = 0.35;   // lo que "pesa" la patata
+
+  // Matemáticas de puntería: calculamos la velocidad inicial para
+  // que la patata caiga justo donde estará el zombi
+  patatas.push({
+    x: inicio.x,
+    y: inicio.y,
+    vx: (objetivo.x - inicio.x) / vuelo,
+    vy: (objetivo.y - inicio.y) / vuelo - (gravedad * vuelo) / 2,
+    gravedad: gravedad,
+    tiempo: vuelo,
+    giro: 0,
+  });
+  sonidos.lanzapatata();
+}
+
+function explotarPatata(patata) {
+  sonidos.explosion();
+  crearExplosion(patata.x, patata.y, "#ffaa33", 30);
+  crearExplosion(patata.x, patata.y, "#d9a066", 15);
+
+  // Daño en área: todos los zombis dentro del radio reciben daño
+  for (const zombi of zombis) {
+    const dx = zombi.x - patata.x;
+    const dy = zombi.y - patata.y;
+    if (Math.sqrt(dx * dx + dy * dy) < AJUSTES.radioExplosion + zombi.radio) {
+      zombi.vida -= AJUSTES.danoPatata;
+      if (zombi.vida <= 0) {
+        puntos += zombi.esJefe ? 500 : 50;
+        crearExplosion(zombi.x, zombi.y, zombi.esJefe ? "#b366ff" : "#7fe37f", zombi.esJefe ? 35 : 12);
+        if (zombi.esJefe) sonidos.jefeMuere(); else sonidos.zombiMuere();
+      }
+    }
+  }
+}
+
+// ================================================================
 //  ACTUALIZAR: aquí se mueve todo (se ejecuta 60 veces por segundo)
 // ================================================================
 function actualizar() {
@@ -154,8 +274,9 @@ function actualizar() {
   if (teclas["ArrowRight"]) tropa.destinoX += 8;
   // La tropa se acerca poco a poco a su destino (queda suave)
   tropa.x += (tropa.destinoX - tropa.x) * 0.2;
-  // Que no se salga de la pantalla
-  tropa.x = Math.max(50, Math.min(ANCHO - 50, tropa.x));
+  // Que no se salga de la pantalla (dejamos hueco a la derecha
+  // para que el Sargento Patata no quede cortado)
+  tropa.x = Math.max(50, Math.min(ANCHO - 78, tropa.x));
 
   // --- Disparar ---
   if (fotograma % AJUSTES.cadenciaDisparo === 0) {
@@ -169,7 +290,30 @@ function actualizar() {
         dano: Math.max(1, Math.round(tropa.soldados / disparos)),
       });
     }
+    sonidos.disparo();
   }
+
+  // --- El Sargento Patata apunta y lanza ---
+  if (fotograma % AJUSTES.cadenciaPatata === 0 && zombis.length > 0) {
+    // Busca al zombi más peligroso: el que está más abajo (más cerca de ti)
+    let objetivo = zombis[0];
+    for (const zombi of zombis) {
+      if (zombi.y > objetivo.y) objetivo = zombi;
+    }
+    // Apunta un poco por delante, porque el zombi sigue bajando
+    lanzarPatata({ x: objetivo.x, y: objetivo.y + velocidad * 45 });
+  }
+
+  // --- Mover las patatas (vuelan en curva por la gravedad) ---
+  for (const patata of patatas) {
+    patata.vy += patata.gravedad;  // la gravedad tira hacia abajo
+    patata.x += patata.vx;
+    patata.y += patata.vy;
+    patata.giro += 0.3;            // gira mientras vuela
+    patata.tiempo--;
+    if (patata.tiempo <= 0) explotarPatata(patata);
+  }
+  patatas = patatas.filter((p) => p.tiempo > 0);
 
   // --- Mover balas (van hacia arriba) ---
   for (const bala of balas) bala.y -= AJUSTES.velocidadBala;
@@ -197,6 +341,7 @@ function actualizar() {
       crearTexto(tropa.x, tropa.y - 60,
         (cambio >= 0 ? "+" : "") + cambio,
         cambio >= 0 ? "#4dff88" : "#ff5c5c");
+      if (cambio >= 0) sonidos.puertaBuena(); else sonidos.puertaMala();
       if (cambio > 0) puntos += cambio * 10;
     }
   }
@@ -222,6 +367,7 @@ function actualizar() {
       zombi.vida = 0; // el zombi también "muere" al atacar
       crearExplosion(tropa.x, tropa.y, "#ff5c5c", 20);
       crearTexto(tropa.x, tropa.y - 60, "-" + mordisco, "#ff5c5c");
+      sonidos.mordisco();
     }
   }
 
@@ -237,6 +383,7 @@ function actualizar() {
           puntos += zombi.esJefe ? 500 : 50;
           crearExplosion(zombi.x, zombi.y, zombi.esJefe ? "#b366ff" : "#7fe37f", zombi.esJefe ? 35 : 12);
           if (zombi.esJefe) crearTexto(zombi.x, zombi.y, "+500", "#ffd94d");
+          if (zombi.esJefe) sonidos.jefeMuere(); else sonidos.zombiMuere();
         }
         break;
       }
@@ -301,6 +448,30 @@ function dibujar() {
     ctx.fillRect(bala.x - 2, bala.y - 8, 4, 12);
   }
 
+  // --- Patatas volando (girando por el aire) ---
+  for (const patata of patatas) {
+    ctx.save();
+    ctx.translate(patata.x, patata.y);
+    ctx.rotate(patata.giro);
+    // La patata: un óvalo marrón con manchitas
+    ctx.fillStyle = "#c8925a";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 12, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#9c6b3d";
+    ctx.beginPath();
+    ctx.arc(-4, -2, 1.8, 0, Math.PI * 2);
+    ctx.arc(4, 2, 1.8, 0, Math.PI * 2);
+    ctx.arc(1, -3, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // Sombra en el suelo para ver dónde va a caer
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(patata.x, patata.y + 20, 10, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // --- Zombis ---
   for (const zombi of zombis) {
     // Cuerpo
@@ -347,6 +518,38 @@ function dibujar() {
     ctx.arc(sx, sy - 3, 5, Math.PI, 0);
     ctx.fill();
   }
+
+  // --- El Sargento Patata y su lanzador ---
+  const sargento = posicionSargento();
+  // Cuerpo (más grande que un soldado normal y de color caqui)
+  ctx.fillStyle = "#8a9a5b";
+  ctx.beginPath();
+  ctx.arc(sargento.x, sargento.y, 11, 0, Math.PI * 2);
+  ctx.fill();
+  // Casco
+  ctx.fillStyle = "#5c6b3c";
+  ctx.beginPath();
+  ctx.arc(sargento.x, sargento.y - 4, 8, Math.PI, 0);
+  ctx.fill();
+  // El lanzador de patatas: un tubo inclinado sobre su hombro
+  ctx.save();
+  ctx.translate(sargento.x, sargento.y);
+  ctx.rotate(-0.5); // inclinado apuntando hacia arriba
+  ctx.fillStyle = "#4a4a4a";
+  ctx.fillRect(-5, -30, 10, 26);       // el tubo
+  ctx.fillStyle = "#6b6b6b";
+  ctx.fillRect(-7, -34, 14, 6);        // la boca del tubo
+  // Una patata asomando, lista para salir
+  ctx.fillStyle = "#c8925a";
+  ctx.beginPath();
+  ctx.ellipse(0, -34, 6, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  // Su nombre
+  ctx.fillStyle = "#ffd94d";
+  ctx.font = "bold 10px Trebuchet MS";
+  ctx.textAlign = "center";
+  ctx.fillText("SGT. 🥔", sargento.x, sargento.y + 24);
 
   // --- Partículas ---
   for (const p of particulas) {
@@ -400,10 +603,12 @@ function empezarPartida() {
   balas = [];
   zombis = [];
   puertas = [];
+  patatas = [];
   particulas = [];
   textos = [];
   distanciaPuerta = 0;
 
+  encenderAudio(); // el clic en el botón nos da permiso para sonar
   document.getElementById("pantalla-inicio").classList.add("oculta");
   document.getElementById("pantalla-fin").classList.add("oculta");
   estado = "jugando";
@@ -411,6 +616,7 @@ function empezarPartida() {
 
 function finDePartida() {
   estado = "fin";
+  sonidos.fin();
   if (puntos > record) {
     record = puntos;
     localStorage.setItem("record", record); // guardamos el récord en el navegador

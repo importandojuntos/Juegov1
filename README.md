@@ -10,8 +10,11 @@ Sin instalaciones, sin librerías: perfecto para aprender a programar en familia
 3. Pasa por las puertas **AZULES** (`+3`, `x2`...) para ganar soldados.
 4. Evita las puertas **ROJAS** (`-4`, `÷2`...) que te quitan soldados.
 5. Tu tropa dispara sola: ¡destruye a los zombis antes de que te muerdan!
-6. Cuidado con los **JEFES** morados: aguantan muchos disparos y muerden fuerte.
-7. Si te quedas sin soldados... 💀 ¡fin de la partida!
+6. El **Sargento Patata 🥔** va contigo y lanza patatas explosivas que caen
+   sobre el zombi más cercano y hacen daño en área. ¡BOOM!
+7. Cuidado con los **JEFES** morados: aguantan muchos disparos y muerden fuerte.
+8. Pulsa la tecla **M** para silenciar o activar los sonidos.
+9. Si te quedas sin soldados... 💀 ¡fin de la partida!
 
 También puedes jugarlo con un mini-servidor local (opcional):
 
@@ -38,15 +41,28 @@ números, guardad y recargad el navegador (F5) para ver qué pasa:
 - `cadenciaDisparo: 5` → ¡modo ametralladora!
 - `velocidadMundo: 5` → modo turbo, mucho más difícil.
 - `vidaJefe: 100` → jefes casi indestructibles.
+- `cadenciaPatata: 30` → el Sargento Patata lanza sin parar.
+- `radioExplosion: 200` → explosiones de patata GIGANTES.
 
 ### Retos de programación (de fácil a difícil)
 
 1. **Fácil:** cambia el color de los soldados (busca `#4da6ff` en `game.js`).
 2. **Fácil:** inventa una puerta nueva, por ejemplo `["+10", (n) => n + 10]`.
-3. **Medio:** haz que los jefes den 1000 puntos en vez de 500.
-4. **Medio:** añade una puerta dorada muy rara que haga `x3`.
-5. **Difícil:** añade sonidos con `new Audio("disparo.mp3").play()`.
-6. **Difícil:** crea un power-up que caiga y dé disparos dobles unos segundos.
+3. **Fácil:** cambia los sonidos en la sección `sonidos` de `game.js`
+   (sube o baja los números de frecuencia y escucha qué pasa).
+4. **Medio:** haz que los jefes den 1000 puntos en vez de 500.
+5. **Medio:** añade una puerta dorada muy rara que haga `x3`.
+6. **Medio:** haz que el Sargento Patata lance 3 patatas a la vez.
+7. **Difícil:** crea un power-up que caiga y dé disparos dobles unos segundos.
+8. **Difícil:** añade un segundo sargento a la izquierda de la tropa.
+
+## 🔊 ¿Cómo suenan los sonidos sin archivos mp3?
+
+El juego usa la **Web Audio API** del navegador: en vez de reproducir
+archivos, genera las ondas de sonido con matemáticas en el momento.
+La función `pitido()` crea una nota (frecuencia alta = aguda, baja = grave)
+y la función `ruido()` crea estática para las explosiones. ¡Mirad la
+sección SONIDOS de `game.js` y experimentad!
 
 ## 🧠 Ideas de cómo funciona (para explicárselo)
 
