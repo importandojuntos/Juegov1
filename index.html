@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Última Guerra: ¡Supervivencia!</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧟</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="contenedor">
+    <canvas id="juego" width="480" height="800"></canvas>
+
+    <!-- Pantalla de inicio -->
+    <div id="pantalla-inicio" class="pantalla">
+      <h1>ÚLTIMA GUERRA</h1>
+      <h2>¡Supervivencia!</h2>
+      <p>
+        Mueve tu tropa con el <b>ratón</b>, el <b>dedo</b> o las <b>flechas ← →</b>.<br /><br />
+        Pasa por las puertas <span class="azul">AZULES</span> para ganar soldados<br />
+        y evita las <span class="roja">ROJAS</span>.<br /><br />
+        ¡Detén a los zombis antes de que lleguen a tu tropa!
+      </p>
+      <button id="boton-jugar">▶ JUGAR</button>
+    </div>
+
+    <!-- Pantalla de fin de partida -->
+    <div id="pantalla-fin" class="pantalla oculta">
+      <h1>💀 FIN 💀</h1>
+      <p id="texto-puntos">Puntos: 0</p>
+      <p id="texto-record">Récord: 0</p>
+      <button id="boton-reintentar">↻ OTRA VEZ</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
