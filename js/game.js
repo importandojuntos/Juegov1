@@ -54,6 +54,35 @@
     return Math.max(min, Math.min(max, v));
   }
 
+  const WORMHOLE_PAIRS = [
+    [{ x: 130, y: 130 }, { x: 770, y: 470 }],
+    [{ x: 770, y: 130 }, { x: 130, y: 470 }],
+    [{ x: 450, y: 90 }, { x: 450, y: 510 }],
+  ];
+
+  function createWormholes() {
+    const wormholes = [];
+    WORMHOLE_PAIRS.forEach((pair, pairIdx) => {
+      pair.forEach((pos, endIdx) => {
+        wormholes.push({
+          x: pos.x,
+          y: pos.y,
+          radius: 28,
+          pairId: pairIdx,
+          endIdx,
+          pulse: Math.random() * Math.PI * 2,
+        });
+      });
+    });
+    return wormholes;
+  }
+
+  function getWormholePartner(wormhole) {
+    return gameState.wormholes.find(
+      w => w.pairId === wormhole.pairId && w.endIdx !== wormhole.endIdx
+    );
+  }
+
   class Player {
     constructor(x, y, config) {
       this.x = x;
@@ -65,6 +94,7 @@
       this.invincible = 0;
       this.config = config;
       this.angle = 0;
+      this.teleportCooldown = 0;
     }
 
     update() {
@@ -90,6 +120,7 @@
 
       if (this.cooldown > 0) this.cooldown--;
       if (this.invincible > 0) this.invincible--;
+      if (this.teleportCooldown > 0) this.teleportCooldown--;
 
       if (KEYS[k.shoot] && this.cooldown <= 0) {
         this.shoot();
@@ -294,6 +325,81 @@
       ctx.fill();
       ctx.globalAlpha = 1;
     }
+  }
+
+  function drawWormholes() {
+    gameState.wormholes.forEach(w => {
+      w.pulse += 0.06;
+      const glow = 0.5 + Math.sin(w.pulse) * 0.2;
+      const r = w.radius;
+
+      ctx.save();
+      ctx.translate(w.x, w.y);
+
+      // Brillo exterior
+      const gradient = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 1.4);
+      gradient.addColorStop(0, `rgba(120, 80, 200, ${glow * 0.5})`);
+      gradient.addColorStop(0.6, `rgba(60, 20, 100, ${glow * 0.3})`);
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Agujero oscuro
+      ctx.fillStyle = '#1a0a2e';
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Espiral interior
+      ctx.strokeStyle = `rgba(180, 130, 255, ${glow})`;
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        const start = w.pulse + i * (Math.PI * 2 / 3);
+        for (let a = 0; a < Math.PI * 3; a += 0.15) {
+          const spiralR = (a / (Math.PI * 3)) * r * 0.85;
+          const px = Math.cos(a + start) * spiralR;
+          const py = Math.sin(a + start) * spiralR;
+          if (a === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+
+      // Borde
+      ctx.strokeStyle = `rgba(200, 150, 255, ${0.6 + glow * 0.4})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.restore();
+    });
+  }
+
+  function checkWormholeTeleports() {
+    gameState.players.forEach(player => {
+      if (player.lives <= 0 || player.teleportCooldown > 0) return;
+
+      for (const wormhole of gameState.wormholes) {
+        if (dist(player, wormhole) >= wormhole.radius - 4) continue;
+
+        const exit = getWormholePartner(wormhole);
+        if (!exit) continue;
+
+        const angle = Math.atan2(exit.y - wormhole.y, exit.x - wormhole.x);
+        player.x = exit.x + Math.cos(angle) * 8;
+        player.y = exit.y + Math.sin(angle) * 8;
+        player.teleportCooldown = 45;
+        player.invincible = Math.max(player.invincible, 20);
+
+        spawnParticles(wormhole.x, wormhole.y, '#b388ff', 14);
+        spawnParticles(exit.x, exit.y, '#b388ff', 14);
+        break;
+      }
+    });
   }
 
   class PowerUp {
@@ -503,9 +609,14 @@
     if (!gameState || gameState.gameOver) return;
 
     drawBackground();
+    drawWormholes();
 
     gameState.players.forEach(p => {
-      if (p.lives > 0) { p.update(); p.draw(); }
+      if (p.lives > 0) { p.update(); }
+    });
+    checkWormholeTeleports();
+    gameState.players.forEach(p => {
+      if (p.lives > 0) p.draw();
     });
 
     gameState.bullets.forEach(b => { b.update(); b.draw(); });
@@ -571,6 +682,7 @@
     gameState = {
       duo,
       players,
+      wormholes: createWormholes(),
       bullets: [],
       enemies: [],
       particles: [],
