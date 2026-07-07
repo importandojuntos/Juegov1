@@ -40,6 +40,8 @@ const AJUSTES = {
   bombasPorAvion: 3,        // cuántas bombas suelta cada avión
   radioPozo: 45,            // tamaño de los pozos que dejan las bombas
   danoBomba: 3,             // soldados que pierdes si una bomba explota cerca
+  estrellasMeta: 5,         // estrellas que hay que juntar para el nivel perfecto
+  cadaCuantoEstrella: 350,  // cada cuántos fotogramas aparece una estrella
 };
 
 // ---------- Estado del juego ----------
@@ -69,6 +71,8 @@ let mocos = [];               // los mocos azules que escupen los jefes
 let aviones = [];             // los aviones bombarderos enemigos
 let bombas = [];              // las bombas que sueltan los aviones
 let pozos = [];               // los cráteres que dejan las bombas (¡bloquean el paso!)
+let estrellas = [];           // las estrellas doradas para coleccionar
+let estrellasJuntadas = 0;    // cuántas llevas en esta partida
 let alertaAvion = 0;          // fotogramas que quedan de alerta antes del avión
 let particulas = [];          // trocitos de colores cuando explota algo
 let textos = [];              // números flotantes tipo "+5"
@@ -150,6 +154,7 @@ const sonidos = {
   },
   escupitajo:  () => pitido(320, 0.18, "sine", 0.2, 70), // "¡PTUU!" del moco
   alerta:      () => { pitido(880, 0.12, "square", 0.2); setTimeout(() => pitido(880, 0.12, "square", 0.2), 200); },
+  estrella:    () => { pitido(1319, 0.09, "sine", 0.25); setTimeout(() => pitido(1760, 0.18, "sine", 0.25), 80); }, // ¡brillante!
   avion:       () => pitido(150, 1.2, "sawtooth", 0.12, 60),  // motor que pasa
   bomba:       () => pitido(1200, 0.6, "sine", 0.15, 150),    // silbido de caída
   victoria:    () => {  // canción de victoria de 3 segundos: ¡tu-tu tu-ruuu tu-ruuuuuuuu!
@@ -282,6 +287,20 @@ function escupirMoco(jefe, desvio) {
     culebreo: 1.5 + Math.random() * 1.5, // cuánto se desvía del camino recto
   });
   sonidos.escupitajo();
+}
+
+// ================================================================
+//  ESTRELLAS ⭐
+//  Van bajando por el camino. Si las tocas, las coleccionas.
+//  ¡Junta 5 para completar el nivel con TODAS las estrellas!
+// ================================================================
+function crearEstrella() {
+  estrellas.push({
+    x: 60 + Math.random() * (ANCHO - 120),
+    y: -30,
+    giro: 0,
+    brillo: Math.random() * 6.28,
+  });
 }
 
 // ================================================================
@@ -511,6 +530,30 @@ function actualizar() {
     crearJefe(2);
   }
 
+  // --- Estrellas: aparecen, bajan y se pueden recoger ---
+  if (fotograma % AJUSTES.cadaCuantoEstrella === 0 && fotograma > 0
+      && estrellasJuntadas + estrellas.length < AJUSTES.estrellasMeta) {
+    crearEstrella();
+  }
+  for (const estrella of estrellas) {
+    estrella.y += velocidad;
+    estrella.giro += 0.08;
+    estrella.brillo += 0.15;
+
+    // ¿La tropa la tocó? ¡Recogida!
+    const dx = estrella.x - tropa.x;
+    const dy = estrella.y - tropa.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 42) {
+      estrella.recogida = true;
+      estrellasJuntadas++;
+      puntos += 100;
+      sonidos.estrella();
+      crearExplosion(estrella.x, estrella.y, "#ffd94d", 15);
+      crearTexto(tropa.x, tropa.y - 60, "⭐ " + estrellasJuntadas + "/" + AJUSTES.estrellasMeta, "#ffd94d");
+    }
+  }
+  estrellas = estrellas.filter((e) => !e.recogida && e.y < ALTO + 40);
+
   // --- ¡Alerta aérea! Primero avisamos, después llega el avión ---
   if (fotograma % AJUSTES.cadaCuantoAvion === 0 && fotograma > 0) {
     alertaAvion = AJUSTES.duracionAlerta;
@@ -680,6 +723,24 @@ function actualizar() {
   }
 }
 
+// Dibuja una estrella de 5 puntas en cualquier sitio
+// (alternamos punta larga y punta corta 10 veces alrededor de un círculo)
+function dibujarFormaEstrella(x, y, radio, giro, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(giro);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? radio : radio * 0.45;
+    const angulo = (Math.PI / 5) * i - Math.PI / 2;
+    ctx.lineTo(Math.cos(angulo) * r, Math.sin(angulo) * r);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 // ================================================================
 //  DIBUJAR: aquí se pinta todo en pantalla
 // ================================================================
@@ -773,6 +834,18 @@ function dibujar() {
     ctx.textAlign = "center";
     const icono = puerta.usada ? "" : puerta.esBuena ? "🪖 " : "☠️ ";
     ctx.fillText(icono + puerta.texto, x + ANCHO / 4, puerta.y + 11);
+  }
+
+  // --- Estrellas para recoger (giran y brillan) ---
+  for (const estrella of estrellas) {
+    const palpito = 1 + Math.sin(estrella.brillo) * 0.15; // late como un corazón
+    ctx.save();
+    ctx.shadowColor = "#ffd94d";
+    ctx.shadowBlur = 20;
+    dibujarFormaEstrella(estrella.x, estrella.y, 16 * palpito, estrella.giro, "#ffd94d");
+    ctx.restore();
+    // Centro brillante
+    dibujarFormaEstrella(estrella.x, estrella.y, 8 * palpito, estrella.giro, "#fff3b0");
   }
 
   // --- Balas ---
@@ -1112,6 +1185,12 @@ function dibujar() {
   ctx.textAlign = "center";
   ctx.fillText("NIVEL 1", 170 + (ANCHO - 300) / 2, 45);
 
+  // --- Las 5 estrellas coleccionadas (debajo del marcador) ---
+  for (let i = 0; i < AJUSTES.estrellasMeta; i++) {
+    const llena = i < estrellasJuntadas;
+    dibujarFormaEstrella(28 + i * 26, 62, 10, 0, llena ? "#ffd94d" : "rgba(255,255,255,0.18)");
+  }
+
   // --- Cartel de ALERTA AÉREA parpadeante ---
   if (alertaAvion > 0 && Math.floor(fotograma / 12) % 2 === 0) {
     ctx.fillStyle = "rgba(200,60,20,0.75)";
@@ -1177,6 +1256,8 @@ function empezarPartida() {
   aviones = [];
   bombas = [];
   pozos = [];
+  estrellas = [];
+  estrellasJuntadas = 0;
   alertaAvion = 0;
   avionDesdeIzquierda = true;
   particulas = [];
@@ -1199,8 +1280,18 @@ function nivelCompletado() {
     record = puntos;
     localStorage.setItem("record", record);
   }
+  // Las estrellas del nivel: llenas las juntadas, vacías las que faltan
+  let dibujoEstrellas = "";
+  for (let i = 0; i < AJUSTES.estrellasMeta; i++) {
+    dibujoEstrellas += i < estrellasJuntadas ? "⭐" : "☆";
+  }
+  document.getElementById("estrellas-victoria").textContent = dibujoEstrellas;
   document.getElementById("texto-victoria").textContent =
     "Puntos: " + puntos + " — Soldados vivos: " + tropa.soldados;
+  const mensaje = estrellasJuntadas >= AJUSTES.estrellasMeta
+    ? "¡NIVEL PERFECTO! ¡Juntaste todas las estrellas!"
+    : "Consejo: junta las 5 estrellas ⭐ para el nivel perfecto";
+  document.getElementById("mensaje-estrellas").textContent = mensaje;
   document.getElementById("pantalla-victoria").classList.remove("oculta");
 }
 

@@ -70,6 +70,12 @@ canvas {
 .azul { color: #4da6ff; font-weight: bold; }
 .roja { color: #ff5c5c; font-weight: bold; }
 
+.estrellas-grandes {
+  font-size: 40px !important;
+  letter-spacing: 6px;
+  text-shadow: 0 0 16px rgba(255, 217, 77, 0.7);
+}
+
 button {
   font-size: 24px;
   font-weight: bold;

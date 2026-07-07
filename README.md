@@ -23,9 +23,11 @@ Sin instalaciones, sin librerías: perfecto para aprender a programar en familia
    una flecha indica por dónde vendrá): un avión enemigo cruza el cielo
    soltando **bombas**. Cada bomba marca una **X** donde va a caer, hace
    daño si te pilla cerca, ¡y deja un **pozo** que bloquea el paso!
-9. Pulsa la tecla **M** para silenciar o activar los sonidos.
-10. Si te quedas sin soldados... 💀 ¡fin de la partida!
-11. Al llegar a la meta suena la **canción de victoria**: ¡tu-tu tu-ruuu
+9. Por el camino bajan **5 estrellas doradas ⭐**: recógelas todas para
+   completar el nivel **PERFECTO** (mira tu colección debajo del marcador).
+10. Pulsa la tecla **M** para silenciar o activar los sonidos.
+11. Si te quedas sin soldados... 💀 ¡fin de la partida!
+12. Al llegar a la meta suena la **canción de victoria**: ¡tu-tu tu-ruuu
     tu-ruuuuuuuu! 🎺
 
 También puedes jugarlo con un mini-servidor local (opcional):
@@ -75,6 +77,12 @@ números, guardad y recargad el navegador (F5) para ver qué pasa:
 6. **Medio:** haz que el Sargento Patata lance 3 patatas a la vez.
 7. **Difícil:** crea un power-up que caiga y dé disparos dobles unos segundos.
 8. **Difícil:** añade un segundo sargento a la izquierda de la tropa.
+
+## 📜 Historial de versiones
+
+Todos los cambios del juego están apuntados en [VERSIONES.md](VERSIONES.md).
+Si una versión nueva no os gusta, ahí explica cómo **volver atrás** a
+cualquier versión anterior con un solo comando.
 
 ## 🔊 ¿Cómo suenan los sonidos sin archivos mp3?
 
