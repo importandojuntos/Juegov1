@@ -21,10 +21,10 @@ const AJUSTES = {
   velocidadBala: 10,        // qué tan rápido suben las balas
   cadenciaDisparo: 18,      // cada cuántos fotogramas dispara la tropa (menos = más rápido)
   velocidadMundo: 2.2,      // qué tan rápido baja todo al principio
-  aceleracion: 0.00012,     // cuánto se acelera el juego con el tiempo
+  aceleracion: 0.00006,     // cuánto se acelera el juego con el tiempo
   vidaZombi: 3,             // disparos que aguanta un zombi normal
-  vidaJefe: 40,             // disparos que aguanta un JEFE
-  cadaCuantoPuertas: 430,   // píxeles entre una fila de puertas y la siguiente
+  vidaJefe: 300,            // vida del JEFE (mucha, para que la pelea dure)
+  cadaCuantoPuertas: 560,   // píxeles entre una fila de puertas y la siguiente
   cadaCuantoZombis: 55,     // cada cuántos fotogramas puede salir un zombi
   cadenciaPatata: 90,       // cada cuántos fotogramas dispara el Sargento Patata
   danoPatata: 10,           // daño de la explosión de cada patata
@@ -32,14 +32,25 @@ const AJUSTES = {
   duracionPelea: 360,       // fotogramas que dura la pelea de jefe (360 = 6 segundos)
   cadaCuantoEscupe: 40,     // cada cuántos fotogramas escupe moco el jefe
   danoMoco: 2,              // soldados que pierdes si te da un moco azul
+  metaNivel: 6000,          // puntos necesarios para completar el NIVEL 1
+  jefe1Puntos: 2500,        // el primer jefe aparece con estos puntos
+  jefe2Puntos: 4500,        // el MEGA JEFE aparece con estos puntos
+  cadaCuantoAvion: 800,     // cada cuántos fotogramas pasa un avión bombardero
+  duracionAlerta: 100,      // fotogramas de alerta ANTES de que llegue el avión
+  bombasPorAvion: 3,        // cuántas bombas suelta cada avión
+  radioPozo: 45,            // tamaño de los pozos que dejan las bombas
+  danoBomba: 3,             // soldados que pierdes si una bomba explota cerca
 };
 
 // ---------- Estado del juego ----------
-let estado = "inicio";        // "inicio", "jugando" o "fin"
+let estado = "inicio";        // "inicio", "jugando", "fin" o "victoria"
 let fotograma = 0;            // contador de fotogramas (60 por segundo)
 let puntos = 0;
 let record = Number(localStorage.getItem("record") || 0);
 let velocidad = AJUSTES.velocidadMundo;
+let jefe1Salio = false;       // ¿ya apareció el primer jefe?
+let jefe2Salio = false;       // ¿ya apareció el MEGA JEFE?
+let avionDesdeIzquierda = true; // ¿por qué lado entrará el próximo avión?
 
 // ---------- La tropa ----------
 const tropa = {
@@ -55,6 +66,10 @@ let zombis = [];
 let puertas = [];
 let patatas = [];             // ¡las patatas que lanza el Sargento Patata!
 let mocos = [];               // los mocos azules que escupen los jefes
+let aviones = [];             // los aviones bombarderos enemigos
+let bombas = [];              // las bombas que sueltan los aviones
+let pozos = [];               // los cráteres que dejan las bombas (¡bloquean el paso!)
+let alertaAvion = 0;          // fotogramas que quedan de alerta antes del avión
 let particulas = [];          // trocitos de colores cuando explota algo
 let textos = [];              // números flotantes tipo "+5"
 let distanciaPuerta = 0;      // para saber cuándo toca crear más puertas
@@ -134,6 +149,18 @@ const sonidos = {
     setTimeout(() => pitido(175, 0.5, "sawtooth", 0.35), 680);
   },
   escupitajo:  () => pitido(320, 0.18, "sine", 0.2, 70), // "¡PTUU!" del moco
+  alerta:      () => { pitido(880, 0.12, "square", 0.2); setTimeout(() => pitido(880, 0.12, "square", 0.2), 200); },
+  avion:       () => pitido(150, 1.2, "sawtooth", 0.12, 60),  // motor que pasa
+  bomba:       () => pitido(1200, 0.6, "sine", 0.15, 150),    // silbido de caída
+  victoria:    () => {  // canción de victoria de 3 segundos: ¡tu-tu tu-ruuu tu-ruuuuuuuu!
+    pitido(523, 0.14, "square", 0.25);                                   // tu
+    setTimeout(() => pitido(523, 0.14, "square", 0.25), 180);            // tu
+    setTimeout(() => pitido(587, 0.14, "square", 0.25), 450);            // tu
+    setTimeout(() => pitido(659, 0.45, "square", 0.28), 630);            // ruuu
+    setTimeout(() => pitido(587, 0.14, "square", 0.25), 1250);           // tu
+    setTimeout(() => pitido(784, 0.5, "square", 0.28), 1430);            // ruuuu
+    setTimeout(() => pitido(1047, 1.1, "square", 0.3), 2050);            // ¡ruuuuuuuuuu final!
+  },
 };
 
 window.addEventListener("keydown", (e) => {
@@ -201,15 +228,15 @@ function crearPuertas() {
 }
 
 function crearZombi() {
-  const esJefe = Math.random() < 0.06; // 6% de probabilidad de que sea un JEFE
   const vidaExtra = Math.floor(puntos / 300); // los zombis se hacen más duros con el tiempo
   zombis.push({
     x: 40 + Math.random() * (ANCHO - 80),
     y: -40,
-    radio: esJefe ? 34 : 16,
-    vida: (esJefe ? AJUSTES.vidaJefe : AJUSTES.vidaZombi) + vidaExtra,
-    vidaMaxima: (esJefe ? AJUSTES.vidaJefe : AJUSTES.vidaZombi) + vidaExtra,
-    esJefe: esJefe,
+    radio: 16,
+    vida: AJUSTES.vidaZombi + vidaExtra,
+    vidaMaxima: AJUSTES.vidaZombi + vidaExtra,
+    esJefe: false,
+    esMega: false,
     balanceo: Math.random() * 6.28, // para que caminen tambaleándose
     peleando: false,                // ¿está en plena pelea de jefe?
     yaPeleo: false,                 // para que solo se plante una vez
@@ -217,20 +244,101 @@ function crearZombi() {
   });
 }
 
-// El jefe escupe un moco azul apuntando a donde está la tropa
-function escupirMoco(jefe) {
+// Los jefes del nivel: el 1 es el normal, el 2 es el MEGA JEFE
+// (el doble de grande, con orejotas y que escupe muchos más mocos)
+function crearJefe(numero) {
+  const esMega = numero === 2;
+  const vida = esMega ? AJUSTES.vidaJefe * 2 : AJUSTES.vidaJefe;
+  zombis.push({
+    x: ANCHO / 2,
+    y: -80,
+    radio: esMega ? 68 : 34,
+    vida: vida,
+    vidaMaxima: vida,
+    esJefe: true,
+    esMega: esMega,
+    balanceo: 0,
+    peleando: false,
+    yaPeleo: false,
+    tiempoPelea: 0,
+  });
+}
+
+// El jefe escupe un moco azul apuntando a donde está la tropa.
+// "desvio" gira un poco la puntería (para el abanico del MEGA JEFE)
+function escupirMoco(jefe, desvio) {
   const dx = tropa.x - jefe.x;
   const dy = tropa.y - jefe.y;
-  const distancia = Math.sqrt(dx * dx + dy * dy);
-  const rapidez = 4.5;
+  const angulo = Math.atan2(dy, dx) + (desvio || 0);
+  const rapidez = 3.8;
   mocos.push({
     x: jefe.x,
     y: jefe.y + jefe.radio,
-    vx: (dx / distancia) * rapidez,  // dirección hacia la tropa
-    vy: (dy / distancia) * rapidez,
+    vx: Math.cos(angulo) * rapidez,  // dirección hacia la tropa
+    vy: Math.sin(angulo) * rapidez,
     burbuja: Math.random() * 6.28,   // para que el moco tiemble
+    giro: Math.random() * 6.28,      // el moco va girando sobre sí mismo
+    fase: Math.random() * 6.28,      // cada moco culebrea distinto
+    culebreo: 1.5 + Math.random() * 1.5, // cuánto se desvía del camino recto
   });
   sonidos.escupitajo();
+}
+
+// ================================================================
+//  AVIONES BOMBARDEROS ✈️
+//  Cada cierto tiempo suena una ALERTA... y un avión enemigo cruza
+//  la pantalla soltando bombas. Donde cae una bomba queda un POZO
+//  que no te deja pasar: ¡tendrás que rodearlo!
+// ================================================================
+function crearAvion() {
+  const desdeIzquierda = avionDesdeIzquierda;
+  avionDesdeIzquierda = !avionDesdeIzquierda; // el próximo entrará por el otro lado
+  aviones.push({
+    x: desdeIzquierda ? -70 : ANCHO + 70,
+    y: 140 + Math.random() * 90,
+    vx: desdeIzquierda ? 4.5 : -4.5,
+    bombasRestantes: AJUSTES.bombasPorAvion,
+    helice: 0,
+  });
+  sonidos.avion();
+}
+
+function soltarBomba(avion) {
+  bombas.push({
+    x: avion.x,
+    y: avion.y + 14,
+    vy: 2,                                  // empieza cayendo despacio...
+    objetivoY: 330 + Math.random() * 320,   // ...hasta esta altura, donde explota
+    balanceo: Math.random() * 6.28,
+  });
+  sonidos.bomba(); // el silbido de la caída
+}
+
+function explotarBomba(bomba) {
+  sonidos.explosion();
+  crearExplosion(bomba.x, bomba.y, "#ff8844", 35);
+  crearExplosion(bomba.x, bomba.y, "#999999", 20);
+
+  // ¿La tropa estaba cerca? ¡Pierde soldados!
+  const dx = tropa.x - bomba.x;
+  const dy = tropa.y - bomba.y;
+  if (Math.sqrt(dx * dx + dy * dy) < AJUSTES.radioPozo + 45) {
+    tropa.soldados -= AJUSTES.danoBomba;
+    crearTexto(tropa.x, tropa.y - 60, "-" + AJUSTES.danoBomba, "#ff8844");
+  }
+
+  // Los zombis cercanos también sufren la explosión
+  for (const zombi of zombis) {
+    if (zombi.esJefe && !zombi.yaPeleo) continue; // escudo del jefe
+    const zx = zombi.x - bomba.x;
+    const zy = zombi.y - bomba.y;
+    if (Math.sqrt(zx * zx + zy * zy) < AJUSTES.radioPozo + zombi.radio) {
+      zombi.vida -= 6;
+    }
+  }
+
+  // Y queda el POZO en el suelo
+  pozos.push({ x: bomba.x, y: bomba.y, radio: AJUSTES.radioPozo });
 }
 
 function crearExplosion(x, y, color, cantidad) {
@@ -287,6 +395,8 @@ function explotarPatata(patata) {
 
   // Daño en área: todos los zombis dentro del radio reciben daño
   for (const zombi of zombis) {
+    // Los jefes llegan con ESCUDO: nada les hace daño hasta que empieza su pelea
+    if (zombi.esJefe && !zombi.yaPeleo) continue;
     const dx = zombi.x - patata.x;
     const dy = zombi.y - patata.y;
     if (Math.sqrt(dx * dx + dy * dy) < AJUSTES.radioExplosion + zombi.radio) {
@@ -391,6 +501,68 @@ function actualizar() {
     crearZombi();
   }
 
+  // --- Los jefes del nivel llegan al alcanzar ciertos puntos ---
+  if (!jefe1Salio && puntos >= AJUSTES.jefe1Puntos) {
+    jefe1Salio = true;
+    crearJefe(1);
+  }
+  if (!jefe2Salio && puntos >= AJUSTES.jefe2Puntos) {
+    jefe2Salio = true;
+    crearJefe(2);
+  }
+
+  // --- ¡Alerta aérea! Primero avisamos, después llega el avión ---
+  if (fotograma % AJUSTES.cadaCuantoAvion === 0 && fotograma > 0) {
+    alertaAvion = AJUSTES.duracionAlerta;
+    sonidos.alerta();
+  }
+  if (alertaAvion > 0) {
+    alertaAvion--;
+    if (alertaAvion === 50) sonidos.alerta();      // segundo aviso
+    if (alertaAvion === 0) crearAvion();           // ¡y ahora sí, llega!
+  }
+
+  // --- Mover aviones y soltar bombas ---
+  for (const avion of aviones) {
+    avion.x += avion.vx;
+    avion.helice += 0.8;
+    // Suelta una bomba cada tramo del recorrido (mientras le queden)
+    const dentro = avion.x > 60 && avion.x < ANCHO - 60;
+    if (dentro && avion.bombasRestantes > 0 && fotograma % 30 === 0) {
+      avion.bombasRestantes--;
+      soltarBomba(avion);
+    }
+  }
+  aviones = aviones.filter((a) => a.x > -100 && a.x < ANCHO + 100);
+
+  // --- Mover bombas (caen cada vez más rápido y silban) ---
+  for (const bomba of bombas) {
+    bomba.vy += 0.15;      // la gravedad la acelera
+    bomba.y += bomba.vy;
+    bomba.balanceo += 0.2;
+    if (bomba.y >= bomba.objetivoY) {
+      explotarBomba(bomba);
+      bomba.explotada = true;
+    }
+  }
+  bombas = bombas.filter((b) => !b.explotada);
+
+  // --- Los pozos bajan con el mundo y BLOQUEAN a la tropa ---
+  for (const pozo of pozos) {
+    pozo.y += velocidad;
+    // Si la tropa choca con el pozo, la empujamos hacia el lado
+    // más cercano: ¡no se puede pasar por encima!
+    const dx = tropa.x - pozo.x;
+    const dy = tropa.y - pozo.y;
+    const margen = pozo.radio + 30;
+    if (Math.abs(dy) < margen && Math.abs(dx) < margen) {
+      tropa.x = dx >= 0 ? pozo.x + margen : pozo.x - margen;
+      tropa.x = Math.max(50, Math.min(ANCHO - 78, tropa.x)); // sin salirse
+      tropa.destinoX = tropa.x;
+    }
+  }
+  pozos = pozos.filter((p) => p.y < ALTO + 80);
+
   // --- Mover zombis (¡y peleas de jefe!) ---
   for (const zombi of zombis) {
     // Cuando un jefe llega a su sitio, se planta 6 segundos a pelear
@@ -398,7 +570,7 @@ function actualizar() {
       zombi.yaPeleo = true;
       zombi.peleando = true;
       zombi.tiempoPelea = AJUSTES.duracionPelea;
-      crearTexto(ANCHO / 2, 300, "¡PELEA DE JEFE!", "#ffd94d");
+      crearTexto(ANCHO / 2, 300, zombi.esMega ? "¡¡MEGA JEFE!!" : "¡PELEA DE JEFE!", "#ffd94d");
       sonidos.peleaJefe();
     }
 
@@ -407,7 +579,16 @@ function actualizar() {
       zombi.balanceo += 0.05;
       zombi.x += Math.sin(zombi.balanceo) * 1.6;
       zombi.tiempoPelea--;
-      if (zombi.tiempoPelea % AJUSTES.cadaCuantoEscupe === 0) escupirMoco(zombi);
+      if (zombi.esMega) {
+        // El MEGA JEFE escupe en abanico de 3 (pero sin pasarse)
+        if (zombi.tiempoPelea % AJUSTES.cadaCuantoEscupe === 0) {
+          escupirMoco(zombi, -0.35);
+          escupirMoco(zombi, 0);
+          escupirMoco(zombi, 0.35);
+        }
+      } else {
+        if (zombi.tiempoPelea % AJUSTES.cadaCuantoEscupe === 0) escupirMoco(zombi, 0);
+      }
       if (zombi.tiempoPelea <= 0) zombi.peleando = false; // se cansó: vuelve a avanzar
     } else {
       zombi.y += velocidad * (zombi.esJefe ? 0.7 : 1); // los jefes son lentos
@@ -419,7 +600,7 @@ function actualizar() {
     const dx = zombi.x - tropa.x;
     const dy = zombi.y - tropa.y;
     if (Math.sqrt(dx * dx + dy * dy) < zombi.radio + 30) {
-      const mordisco = zombi.esJefe ? 10 : 2;
+      const mordisco = zombi.esMega ? 20 : zombi.esJefe ? 10 : 2;
       tropa.soldados -= mordisco;
       zombi.vida = 0; // el zombi también "muere" al atacar
       crearExplosion(tropa.x, tropa.y, "#ff5c5c", 20);
@@ -431,15 +612,19 @@ function actualizar() {
   // --- ¿Las balas dan a los zombis? ---
   for (const bala of balas) {
     for (const zombi of zombis) {
+      // Los jefes llegan con ESCUDO: las balas los atraviesan
+      // hasta que se plantan a pelear
+      if (zombi.esJefe && !zombi.yaPeleo) continue;
       const dx = bala.x - zombi.x;
       const dy = bala.y - zombi.y;
       if (Math.sqrt(dx * dx + dy * dy) < zombi.radio + 5) {
         zombi.vida -= bala.dano;
         bala.y = -999; // la bala desaparece
         if (zombi.vida <= 0) {
-          puntos += zombi.esJefe ? 500 : 50;
-          crearExplosion(zombi.x, zombi.y, zombi.esJefe ? "#b366ff" : "#7fe37f", zombi.esJefe ? 35 : 12);
-          if (zombi.esJefe) crearTexto(zombi.x, zombi.y, "+500", "#ffd94d");
+          const premio = zombi.esMega ? 1000 : zombi.esJefe ? 500 : 50;
+          puntos += premio;
+          crearExplosion(zombi.x, zombi.y, zombi.esJefe ? "#b366ff" : "#7fe37f", zombi.esMega ? 60 : zombi.esJefe ? 35 : 12);
+          if (zombi.esJefe) crearTexto(zombi.x, zombi.y, "+" + premio, "#ffd94d");
           if (zombi.esJefe) sonidos.jefeMuere(); else sonidos.zombiMuere();
         }
         break;
@@ -450,9 +635,17 @@ function actualizar() {
 
   // --- Mover los mocos azules (¡esquívalos!) ---
   for (const moco of mocos) {
+    moco.burbuja += 0.25;
+    moco.giro += 0.3;    // gira sobre sí mismo mientras vuela
+    moco.fase += 0.12;
+    // Avanza hacia adelante...
     moco.x += moco.vx;
     moco.y += moco.vy;
-    moco.burbuja += 0.25;
+    // ...pero culebreando: se desvía a los lados como una serpiente.
+    // El truco: sumamos un empujón PERPENDICULAR a su dirección
+    const lado = Math.sin(moco.fase) * moco.culebreo;
+    moco.x += (-moco.vy / 3.8) * lado;
+    moco.y += (moco.vx / 3.8) * lado;
 
     // ¿Un moco alcanzó a la tropa? ¡Splat!
     const dx = moco.x - tropa.x;
@@ -474,6 +667,12 @@ function actualizar() {
   particulas = particulas.filter((p) => p.vida > 0);
   for (const t of textos) { t.y -= 1; t.vida--; }
   textos = textos.filter((t) => t.vida > 0);
+
+  // --- ¿Llegaste a la meta? ¡Nivel completado! ---
+  if (puntos >= AJUSTES.metaNivel) {
+    nivelCompletado();
+    return;
+  }
 
   // --- ¿Perdiste? ---
   if (tropa.soldados <= 0) {
@@ -518,6 +717,23 @@ function dibujar() {
     ctx.stroke();
   }
   ctx.setLineDash([]);
+
+  // --- Pozos (se dibujan primero: están en el suelo) ---
+  for (const pozo of pozos) {
+    // El agujero oscuro
+    const hondo = ctx.createRadialGradient(pozo.x, pozo.y, 2, pozo.x, pozo.y, pozo.radio);
+    hondo.addColorStop(0, "#000000");
+    hondo.addColorStop(0.7, "#0a0a14");
+    hondo.addColorStop(1, "#2e2417");
+    ctx.fillStyle = hondo;
+    ctx.beginPath();
+    ctx.ellipse(pozo.x, pozo.y, pozo.radio, pozo.radio * 0.75, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // El borde de tierra levantada
+    ctx.strokeStyle = "#4a3a24";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
 
   // --- Puertas (con esquinas redondeadas y brillo de neón) ---
   for (const puerta of puertas) {
@@ -589,20 +805,24 @@ function dibujar() {
     ctx.fill();
   }
 
-  // --- Mocos azules (con brillo y temblor de gelatina) ---
+  // --- Mocos azules (girando y con temblor de gelatina) ---
   for (const moco of mocos) {
     const tamano = 10 + Math.sin(moco.burbuja) * 2;
     ctx.save();
     ctx.shadowColor = "#4dc3ff";
     ctx.shadowBlur = 14;
+    ctx.translate(moco.x, moco.y);
+    ctx.rotate(moco.giro); // ¡el moco gira sobre sí mismo!
+    // Cuerpo ovalado (al girar se nota el movimiento)
     ctx.fillStyle = "#3fa9e8";
     ctx.beginPath();
-    ctx.arc(moco.x, moco.y, tamano, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, tamano, tamano * 0.65, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Gotita que deja detrás
-    ctx.fillStyle = "rgba(77,195,255,0.5)";
+    // Dos gotitas que orbitan alrededor, como baba que se despega
+    ctx.fillStyle = "rgba(77,195,255,0.7)";
     ctx.beginPath();
-    ctx.arc(moco.x - moco.vx * 2.5, moco.y - moco.vy * 2.5, tamano * 0.45, 0, Math.PI * 2);
+    ctx.arc(tamano * 1.1, 0, tamano * 0.3, 0, Math.PI * 2);
+    ctx.arc(-tamano * 1.1, 0, tamano * 0.25, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
     // Brillito encima (como si fuera gelatina)
@@ -612,10 +832,102 @@ function dibujar() {
     ctx.fill();
   }
 
+  // --- Bombas cayendo ---
+  for (const bomba of bombas) {
+    ctx.save();
+    ctx.translate(bomba.x, bomba.y);
+    ctx.rotate(Math.sin(bomba.balanceo) * 0.2); // se balancea al caer
+    // Cuerpo negro con punta
+    ctx.fillStyle = "#2b2b2b";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 7, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Aletas traseras
+    ctx.fillStyle = "#555";
+    ctx.fillRect(-8, -16, 16, 5);
+    // Lucecita roja que parpadea
+    if (Math.floor(fotograma / 8) % 2 === 0) {
+      ctx.fillStyle = "#ff3333";
+      ctx.beginPath();
+      ctx.arc(0, 10, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    // La "X" en el suelo donde va a caer
+    ctx.strokeStyle = "rgba(255,136,68,0.5)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(bomba.x - 10, bomba.objetivoY - 10);
+    ctx.lineTo(bomba.x + 10, bomba.objetivoY + 10);
+    ctx.moveTo(bomba.x + 10, bomba.objetivoY - 10);
+    ctx.lineTo(bomba.x - 10, bomba.objetivoY + 10);
+    ctx.stroke();
+  }
+
+  // --- Aviones bombarderos ---
+  for (const avion of aviones) {
+    ctx.save();
+    ctx.translate(avion.x, avion.y);
+    if (avion.vx < 0) ctx.scale(-1, 1); // si vuela hacia la izquierda, lo volteamos
+    // Cuerpo
+    ctx.fillStyle = "#6b7280";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 34, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Morro
+    ctx.fillStyle = "#4b5563";
+    ctx.beginPath();
+    ctx.arc(30, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+    // Alas
+    ctx.fillStyle = "#525a66";
+    ctx.beginPath();
+    ctx.moveTo(-4, -4);  ctx.lineTo(-22, -24); ctx.lineTo(-10, -4);
+    ctx.moveTo(-4, 4);   ctx.lineTo(-22, 24);  ctx.lineTo(-10, 4);
+    ctx.fill();
+    // Cola
+    ctx.fillRect(-36, -12, 8, 12);
+    // Hélice que gira (una línea que cambia de tamaño)
+    ctx.strokeStyle = "#d1d5db";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(36, -Math.sin(avion.helice) * 12);
+    ctx.lineTo(36, Math.sin(avion.helice) * 12);
+    ctx.stroke();
+    // Estrella enemiga
+    ctx.fillStyle = "#ff5c5c";
+    ctx.font = "bold 12px Trebuchet MS";
+    ctx.textAlign = "center";
+    ctx.fillText("★", -14, 4);
+    ctx.restore();
+  }
+
   // --- Zombis ---
   for (const zombi of zombis) {
     const colorCuerpo = zombi.esJefe ? "#8033cc" : "#3d9940";
     const colorOscuro = zombi.esJefe ? "#5a2490" : "#2a6b2d";
+
+    // Orejas GIGANTES del MEGA JEFE (se dibujan antes que el cuerpo
+    // para que queden por detrás de la cabeza)
+    if (zombi.esMega) {
+      const menea = Math.sin(zombi.balanceo * 2) * 0.15; // las orejas se menean
+      for (const lado of [-1, 1]) {
+        ctx.save();
+        ctx.translate(zombi.x + lado * zombi.radio * 0.85, zombi.y - zombi.radio * 0.6);
+        ctx.rotate(lado * (0.5 + menea));
+        // Oreja exterior (morada)
+        ctx.fillStyle = colorOscuro;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, zombi.radio * 0.32, zombi.radio * 0.62, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Parte interior (rosada)
+        ctx.fillStyle = "#d98cc2";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, zombi.radio * 0.17, zombi.radio * 0.42, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
 
     // Brazos que se balancean (dos círculos a los lados)
     const vaiven = Math.sin(zombi.balanceo) * zombi.radio * 0.3;
@@ -686,7 +998,8 @@ function dibujar() {
       ctx.fillStyle = "#ffd94d";
       ctx.font = "bold 16px Trebuchet MS";
       ctx.textAlign = "center";
-      ctx.fillText(zombi.peleando ? "¡PELEANDO!" : "JEFE", zombi.x, zombi.y - zombi.radio - 22);
+      const nombre = zombi.esMega ? "MEGA JEFE" : "JEFE";
+      ctx.fillText(zombi.peleando ? "¡PELEANDO!" : nombre, zombi.x, zombi.y - zombi.radio - 22);
     }
   }
 
@@ -784,6 +1097,35 @@ function dibujar() {
   ctx.textAlign = "right";
   ctx.fillText("🪖 " + tropa.soldados, ANCHO - 24, 32);
 
+  // --- Barra de progreso del nivel (de 0 a la meta) ---
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.roundRect(170, 16, ANCHO - 300, 18, 9);
+  ctx.fill();
+  ctx.fillStyle = "#ffd94d";
+  ctx.beginPath();
+  const progreso = Math.min(1, puntos / AJUSTES.metaNivel);
+  ctx.roundRect(173, 19, (ANCHO - 306) * progreso, 12, 6);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 11px Trebuchet MS";
+  ctx.textAlign = "center";
+  ctx.fillText("NIVEL 1", 170 + (ANCHO - 300) / 2, 45);
+
+  // --- Cartel de ALERTA AÉREA parpadeante ---
+  if (alertaAvion > 0 && Math.floor(fotograma / 12) % 2 === 0) {
+    ctx.fillStyle = "rgba(200,60,20,0.75)";
+    ctx.beginPath();
+    ctx.roundRect(ANCHO / 2 - 150, 120, 300, 44, 12);
+    ctx.fill();
+    ctx.fillStyle = "#ffe066";
+    ctx.font = "bold 22px Trebuchet MS";
+    ctx.textAlign = "center";
+    // La flecha señala por dónde entrará el avión
+    const flecha = avionDesdeIzquierda ? "⬅️" : "➡️";
+    ctx.fillText(flecha + " ¡ALERTA AÉREA! " + flecha, ANCHO / 2, 149);
+  }
+
   // --- Barra gigante del jefe cuando hay pelea ---
   const jefeEnPelea = zombis.find((z) => z.peleando);
   if (jefeEnPelea) {
@@ -800,7 +1142,8 @@ function dibujar() {
     ctx.textAlign = "center";
     // Cuenta atrás de la pelea en segundos
     const segundos = Math.ceil(jefeEnPelea.tiempoPelea / 60);
-    ctx.fillText("👑 JEFE — " + segundos + "s", ANCHO / 2, 90);
+    const nombre = jefeEnPelea.esMega ? "MEGA JEFE" : "JEFE";
+    ctx.fillText("👑 " + nombre + " — " + segundos + "s", ANCHO / 2, 90);
   }
 }
 
@@ -831,14 +1174,34 @@ function empezarPartida() {
   puertas = [];
   patatas = [];
   mocos = [];
+  aviones = [];
+  bombas = [];
+  pozos = [];
+  alertaAvion = 0;
+  avionDesdeIzquierda = true;
   particulas = [];
   textos = [];
   distanciaPuerta = 0;
+  jefe1Salio = false;
+  jefe2Salio = false;
 
   encenderAudio(); // el clic en el botón nos da permiso para sonar
   document.getElementById("pantalla-inicio").classList.add("oculta");
   document.getElementById("pantalla-fin").classList.add("oculta");
+  document.getElementById("pantalla-victoria").classList.add("oculta");
   estado = "jugando";
+}
+
+function nivelCompletado() {
+  estado = "victoria";
+  sonidos.victoria();
+  if (puntos > record) {
+    record = puntos;
+    localStorage.setItem("record", record);
+  }
+  document.getElementById("texto-victoria").textContent =
+    "Puntos: " + puntos + " — Soldados vivos: " + tropa.soldados;
+  document.getElementById("pantalla-victoria").classList.remove("oculta");
 }
 
 function finDePartida() {
@@ -855,6 +1218,7 @@ function finDePartida() {
 
 document.getElementById("boton-jugar").addEventListener("click", empezarPartida);
 document.getElementById("boton-reintentar").addEventListener("click", empezarPartida);
+document.getElementById("boton-otra").addEventListener("click", empezarPartida);
 
 // ¡Arrancamos el bucle! (aunque no dibuja nada hasta que pulses JUGAR)
 bucle();
