@@ -32,17 +32,53 @@ const AJUSTES = {
   duracionPelea: 360,       // fotogramas que dura la pelea de jefe (360 = 6 segundos)
   cadaCuantoEscupe: 40,     // cada cuántos fotogramas escupe moco el jefe
   danoMoco: 2,              // soldados que pierdes si te da un moco azul
-  metaNivel: 6000,          // puntos necesarios para completar el NIVEL 1
-  jefe1Puntos: 2500,        // el primer jefe aparece con estos puntos
-  jefe2Puntos: 4500,        // el MEGA JEFE aparece con estos puntos
   cadaCuantoAvion: 800,     // cada cuántos fotogramas pasa un avión bombardero
   duracionAlerta: 100,      // fotogramas de alerta ANTES de que llegue el avión
-  bombasPorAvion: 3,        // cuántas bombas suelta cada avión
   radioPozo: 45,            // tamaño de los pozos que dejan las bombas
   danoBomba: 3,             // soldados que pierdes si una bomba explota cerca
   estrellasMeta: 5,         // estrellas que hay que juntar para el nivel perfecto
   cadaCuantoEstrella: 350,  // cada cuántos fotogramas aparece una estrella
 };
+
+// ================================================================
+//  LOS NIVELES DEL JUEGO
+//  Cada nivel dice: cuántos puntos hacen falta (meta), qué jefes
+//  aparecen y cuándo, si hay aviones y cuántas bombas tiran.
+//  Tipos de jefe:  1 = JEFE   2 = MEGA JEFE   3 = ¡EL REY ZOMBI!
+// ================================================================
+const NIVELES = [
+  { // NIVEL 0: para aprender, sin jefes ni aviones
+    nombre: "Entrenamiento",
+    meta: 3000, jefes: [], aviones: false,
+    bombasMin: 0, bombasMax: 0, cadaCuantoZombis: 60,
+  },
+  { // NIVEL 1: aparece tu primer jefe
+    nombre: "El Primer Jefe",
+    meta: 4000, jefes: [{ en: 2000, tipo: 1 }], aviones: false,
+    bombasMin: 0, bombasMax: 0, cadaCuantoZombis: 55,
+  },
+  { // NIVEL 2: ¡dos jefes! El normal y el MEGA
+    nombre: "Los Dos Jefes",
+    meta: 5000, jefes: [{ en: 2000, tipo: 1 }, { en: 3800, tipo: 2 }], aviones: false,
+    bombasMin: 0, bombasMax: 0, cadaCuantoZombis: 52,
+  },
+  { // NIVEL 3: llegan los aviones (de 1 bomba)
+    nombre: "¡Bombardeo!",
+    meta: 5500, jefes: [{ en: 2800, tipo: 1 }], aviones: true,
+    bombasMin: 1, bombasMax: 1, cadaCuantoZombis: 50,
+  },
+  { // NIVEL 4: aviones cargados con 2 o 3 bombas
+    nombre: "Lluvia de Bombas",
+    meta: 6000, jefes: [{ en: 2200, tipo: 1 }, { en: 4200, tipo: 2 }], aviones: true,
+    bombasMin: 2, bombasMax: 3, cadaCuantoZombis: 46,
+  },
+  { // NIVEL 5: la SORPRESA... luna de sangre, zombis dorados
+    // veloces ¡y EL REY ZOMBI, el jefe final gigante que invoca zombis!
+    nombre: "El Rey Zombi",
+    meta: 7000, jefes: [{ en: 2000, tipo: 2 }, { en: 4500, tipo: 3 }], aviones: true,
+    bombasMin: 2, bombasMax: 3, cadaCuantoZombis: 42, sorpresa: true,
+  },
+];
 
 // ---------- Estado del juego ----------
 let estado = "inicio";        // "inicio", "jugando", "fin" o "victoria"
@@ -50,9 +86,15 @@ let fotograma = 0;            // contador de fotogramas (60 por segundo)
 let puntos = 0;
 let record = Number(localStorage.getItem("record") || 0);
 let velocidad = AJUSTES.velocidadMundo;
-let jefe1Salio = false;       // ¿ya apareció el primer jefe?
-let jefe2Salio = false;       // ¿ya apareció el MEGA JEFE?
+let nivelActual = 0;          // en qué nivel estamos jugando
+let nivelDesbloqueado = Number(localStorage.getItem("nivelDesbloqueado") || 0);
+let jefesSalidos = 0;         // cuántos jefes del nivel ya aparecieron
 let avionDesdeIzquierda = true; // ¿por qué lado entrará el próximo avión?
+
+// Un atajo para leer la configuración del nivel que estamos jugando
+function nivel() {
+  return NIVELES[nivelActual];
+}
 
 // ---------- La tropa ----------
 const tropa = {
@@ -236,14 +278,18 @@ function crearPuertas() {
 
 function crearZombi() {
   const vidaExtra = Math.floor(puntos / 300); // los zombis se hacen más duros con el tiempo
+  // En el nivel sorpresa hay zombis DORADOS: rápidos pero valen 200 puntos
+  const esDorado = nivel().sorpresa && Math.random() < 0.15;
   zombis.push({
     x: 40 + Math.random() * (ANCHO - 80),
     y: -40,
-    radio: 16,
-    vida: AJUSTES.vidaZombi + vidaExtra,
-    vidaMaxima: AJUSTES.vidaZombi + vidaExtra,
+    radio: esDorado ? 14 : 16,
+    vida: esDorado ? 2 : AJUSTES.vidaZombi + vidaExtra,
+    vidaMaxima: esDorado ? 2 : AJUSTES.vidaZombi + vidaExtra,
     esJefe: false,
     esMega: false,
+    esRey: false,
+    esDorado: esDorado,
     balanceo: Math.random() * 6.28, // para que caminen tambaleándose
     peleando: false,                // ¿está en plena pelea de jefe?
     yaPeleo: false,                 // para que solo se plante una vez
@@ -251,19 +297,21 @@ function crearZombi() {
   });
 }
 
-// Los jefes del nivel: el 1 es el normal, el 2 es el MEGA JEFE
-// (el doble de grande, con orejotas y que escupe muchos más mocos)
-function crearJefe(numero) {
-  const esMega = numero === 2;
-  const vida = esMega ? AJUSTES.vidaJefe * 2 : AJUSTES.vidaJefe;
+// Los jefes: tipo 1 = JEFE, tipo 2 = MEGA JEFE (doble de grande,
+// con orejotas), tipo 3 = ¡EL REY ZOMBI! (gigante, rojo, con corona
+// enorme, escupe en abanico de 5 e invoca zombis durante la pelea)
+function crearJefe(tipo) {
+  const vida = AJUSTES.vidaJefe * tipo; // tipo 1 = x1, tipo 2 = x2, tipo 3 = x3
   zombis.push({
     x: ANCHO / 2,
-    y: -80,
-    radio: esMega ? 68 : 34,
+    y: -110,
+    radio: tipo === 3 ? 95 : tipo === 2 ? 68 : 34,
     vida: vida,
     vidaMaxima: vida,
     esJefe: true,
-    esMega: esMega,
+    esMega: tipo >= 2,
+    esRey: tipo === 3,
+    esDorado: false,
     balanceo: 0,
     peleando: false,
     yaPeleo: false,
@@ -314,11 +362,15 @@ function crearEstrella() {
 function crearAvion() {
   const desdeIzquierda = avionDesdeIzquierda;
   avionDesdeIzquierda = !avionDesdeIzquierda; // el próximo entrará por el otro lado
+  // Cuántas bombas trae: un número al azar entre el mínimo y el
+  // máximo que diga el nivel (nivel 3: siempre 1; nivel 4: 2 o 3)
+  const cuantas = nivel().bombasMin +
+    Math.floor(Math.random() * (nivel().bombasMax - nivel().bombasMin + 1));
   aviones.push({
     x: desdeIzquierda ? -70 : ANCHO + 70,
     y: 140 + Math.random() * 90,
     vx: desdeIzquierda ? 4.5 : -4.5,
-    bombasRestantes: AJUSTES.bombasPorAvion,
+    bombasRestantes: cuantas,
     helice: 0,
   });
   sonidos.avion();
@@ -517,19 +569,16 @@ function actualizar() {
   }
   puertas = puertas.filter((p) => p.y < ALTO + 80);
 
-  // --- Crear zombis ---
-  if (fotograma % AJUSTES.cadaCuantoZombis === 0 && Math.random() < 0.8) {
+  // --- Crear zombis (cada nivel tiene su ritmo) ---
+  if (fotograma % nivel().cadaCuantoZombis === 0 && Math.random() < 0.8) {
     crearZombi();
   }
 
   // --- Los jefes del nivel llegan al alcanzar ciertos puntos ---
-  if (!jefe1Salio && puntos >= AJUSTES.jefe1Puntos) {
-    jefe1Salio = true;
-    crearJefe(1);
-  }
-  if (!jefe2Salio && puntos >= AJUSTES.jefe2Puntos) {
-    jefe2Salio = true;
-    crearJefe(2);
+  const listaJefes = nivel().jefes;
+  if (jefesSalidos < listaJefes.length && puntos >= listaJefes[jefesSalidos].en) {
+    crearJefe(listaJefes[jefesSalidos].tipo);
+    jefesSalidos++;
   }
 
   // --- Estrellas: aparecen, bajan y se pueden recoger ---
@@ -557,7 +606,8 @@ function actualizar() {
   estrellas = estrellas.filter((e) => !e.recogida && e.y < ALTO + 40);
 
   // --- ¡Alerta aérea! Primero avisamos, después llega el avión ---
-  if (fotograma % AJUSTES.cadaCuantoAvion === 0 && fotograma > 0) {
+  // (solo en los niveles que tienen aviones)
+  if (nivel().aviones && fotograma % AJUSTES.cadaCuantoAvion === 0 && fotograma > 0) {
     alertaAvion = AJUSTES.duracionAlerta;
     sonidos.alerta();
   }
@@ -614,8 +664,10 @@ function actualizar() {
     if (zombi.esJefe && !zombi.yaPeleo && zombi.y >= 170) {
       zombi.yaPeleo = true;
       zombi.peleando = true;
-      zombi.tiempoPelea = AJUSTES.duracionPelea;
-      crearTexto(ANCHO / 2, 300, zombi.esMega ? "¡¡MEGA JEFE!!" : "¡PELEA DE JEFE!", "#ffd94d");
+      // El Rey pelea 10 segundos; los demás jefes, 6
+      zombi.tiempoPelea = zombi.esRey ? 600 : AJUSTES.duracionPelea;
+      const grito = zombi.esRey ? "¡¡¡EL REY ZOMBI!!!" : zombi.esMega ? "¡¡MEGA JEFE!!" : "¡PELEA DE JEFE!";
+      crearTexto(ANCHO / 2, 300, grito, "#ffd94d");
       sonidos.peleaJefe();
     }
 
@@ -624,19 +676,27 @@ function actualizar() {
       zombi.balanceo += 0.05;
       zombi.x += Math.sin(zombi.balanceo) * 1.6;
       zombi.tiempoPelea--;
-      if (zombi.esMega) {
-        // El MEGA JEFE escupe en abanico de 3 (pero sin pasarse)
-        if (zombi.tiempoPelea % AJUSTES.cadaCuantoEscupe === 0) {
-          escupirMoco(zombi, -0.35);
+      if (zombi.tiempoPelea % AJUSTES.cadaCuantoEscupe === 0) {
+        if (zombi.esRey) {
+          // El Rey escupe en abanico de 5, ¡cuidado!
+          for (const desvio of [-0.5, -0.25, 0, 0.25, 0.5]) escupirMoco(zombi, desvio);
+        } else if (zombi.esMega) {
+          // El MEGA JEFE escupe en abanico de 3
+          for (const desvio of [-0.35, 0, 0.35]) escupirMoco(zombi, desvio);
+        } else {
           escupirMoco(zombi, 0);
-          escupirMoco(zombi, 0.35);
         }
-      } else {
-        if (zombi.tiempoPelea % AJUSTES.cadaCuantoEscupe === 0) escupirMoco(zombi, 0);
+      }
+      // El Rey además INVOCA zombis durante su pelea
+      if (zombi.esRey && zombi.tiempoPelea % 130 === 0) {
+        crearZombi();
+        crearTexto(zombi.x, zombi.y + zombi.radio + 20, "¡A MÍ, ZOMBIS!", "#ff8f8f");
       }
       if (zombi.tiempoPelea <= 0) zombi.peleando = false; // se cansó: vuelve a avanzar
     } else {
-      zombi.y += velocidad * (zombi.esJefe ? 0.7 : 1); // los jefes son lentos
+      // Los dorados corren; los jefes van lentos; el resto, normal
+      const paso = zombi.esDorado ? 1.9 : zombi.esJefe ? 0.7 : 1;
+      zombi.y += velocidad * paso;
       zombi.balanceo += 0.15;
       zombi.x += Math.sin(zombi.balanceo) * 0.8; // caminan tambaleándose
     }
@@ -645,7 +705,7 @@ function actualizar() {
     const dx = zombi.x - tropa.x;
     const dy = zombi.y - tropa.y;
     if (Math.sqrt(dx * dx + dy * dy) < zombi.radio + 30) {
-      const mordisco = zombi.esMega ? 20 : zombi.esJefe ? 10 : 2;
+      const mordisco = zombi.esRey ? 35 : zombi.esMega ? 20 : zombi.esJefe ? 10 : 2;
       tropa.soldados -= mordisco;
       zombi.vida = 0; // el zombi también "muere" al atacar
       crearExplosion(tropa.x, tropa.y, "#ff5c5c", 20);
@@ -666,10 +726,11 @@ function actualizar() {
         zombi.vida -= bala.dano;
         bala.y = -999; // la bala desaparece
         if (zombi.vida <= 0) {
-          const premio = zombi.esMega ? 1000 : zombi.esJefe ? 500 : 50;
+          const premio = zombi.esRey ? 3000 : zombi.esMega ? 1000 : zombi.esJefe ? 500 : zombi.esDorado ? 200 : 50;
           puntos += premio;
-          crearExplosion(zombi.x, zombi.y, zombi.esJefe ? "#b366ff" : "#7fe37f", zombi.esMega ? 60 : zombi.esJefe ? 35 : 12);
-          if (zombi.esJefe) crearTexto(zombi.x, zombi.y, "+" + premio, "#ffd94d");
+          const colorBum = zombi.esRey ? "#ff4444" : zombi.esJefe ? "#b366ff" : zombi.esDorado ? "#ffd94d" : "#7fe37f";
+          crearExplosion(zombi.x, zombi.y, colorBum, zombi.esRey ? 90 : zombi.esMega ? 60 : zombi.esJefe ? 35 : 12);
+          if (zombi.esJefe || zombi.esDorado) crearTexto(zombi.x, zombi.y, "+" + premio, "#ffd94d");
           if (zombi.esJefe) sonidos.jefeMuere(); else sonidos.zombiMuere();
         }
         break;
@@ -714,7 +775,7 @@ function actualizar() {
   textos = textos.filter((t) => t.vida > 0);
 
   // --- ¿Llegaste a la meta? ¡Nivel completado! ---
-  if (puntos >= AJUSTES.metaNivel) {
+  if (puntos >= nivel().meta) {
     nivelCompletado();
     return;
   }
@@ -748,12 +809,37 @@ function dibujarFormaEstrella(x, y, radio, giro, color) {
 // ================================================================
 function dibujar() {
   // Fondo: un degradado que va de noche cerrada a azul oscuro
+  // (en el nivel del Rey Zombi la noche se tiñe de ROJO...)
   const cielo = ctx.createLinearGradient(0, 0, 0, ALTO);
-  cielo.addColorStop(0, "#0e0e20");
-  cielo.addColorStop(0.6, "#1a1a30");
-  cielo.addColorStop(1, "#26263e");
+  if (nivel().sorpresa) {
+    cielo.addColorStop(0, "#1c0a12");
+    cielo.addColorStop(0.6, "#2a1018");
+    cielo.addColorStop(1, "#3a1620");
+  } else {
+    cielo.addColorStop(0, "#0e0e20");
+    cielo.addColorStop(0.6, "#1a1a30");
+    cielo.addColorStop(1, "#26263e");
+  }
   ctx.fillStyle = cielo;
   ctx.fillRect(0, 0, ANCHO, ALTO);
+
+  // La LUNA DE SANGRE del nivel final
+  if (nivel().sorpresa) {
+    ctx.save();
+    ctx.shadowColor = "#ff3333";
+    ctx.shadowBlur = 40;
+    ctx.fillStyle = "#8f1f1f";
+    ctx.beginPath();
+    ctx.arc(ANCHO - 70, 120, 38, 0, Math.PI * 2);
+    ctx.fill();
+    // Cráteres de la luna
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.arc(ANCHO - 80, 110, 8, 0, Math.PI * 2);
+    ctx.arc(ANCHO - 58, 132, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   // Piedritas del suelo que bajan (dan sensación de avanzar)
   ctx.fillStyle = "rgba(255,255,255,0.08)";
@@ -979,8 +1065,22 @@ function dibujar() {
 
   // --- Zombis ---
   for (const zombi of zombis) {
-    const colorCuerpo = zombi.esJefe ? "#8033cc" : "#3d9940";
-    const colorOscuro = zombi.esJefe ? "#5a2490" : "#2a6b2d";
+    // Cada tipo tiene su color: rey ROJO, jefes morados,
+    // dorados AMARILLOS y los normales verdes
+    const colorCuerpo = zombi.esRey ? "#b8342e" : zombi.esJefe ? "#8033cc" : zombi.esDorado ? "#d4a017" : "#3d9940";
+    const colorOscuro = zombi.esRey ? "#7d1f1c" : zombi.esJefe ? "#5a2490" : zombi.esDorado ? "#9c7410" : "#2a6b2d";
+
+    // El Rey tiene un aura roja que da miedito
+    if (zombi.esRey) {
+      ctx.save();
+      ctx.shadowColor = "#ff2222";
+      ctx.shadowBlur = 35;
+      ctx.fillStyle = "rgba(255,40,40,0.12)";
+      ctx.beginPath();
+      ctx.arc(zombi.x, zombi.y, zombi.radio + 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Orejas GIGANTES del MEGA JEFE (se dibujan antes que el cuerpo
     // para que queden por detrás de la cabeza)
@@ -1016,7 +1116,7 @@ function dibujar() {
     const luz = ctx.createRadialGradient(
       zombi.x - zombi.radio * 0.3, zombi.y - zombi.radio * 0.4, zombi.radio * 0.2,
       zombi.x, zombi.y, zombi.radio);
-    luz.addColorStop(0, zombi.esJefe ? "#a95ce8" : "#57c25b");
+    luz.addColorStop(0, zombi.esRey ? "#e8635c" : zombi.esJefe ? "#a95ce8" : zombi.esDorado ? "#ffd94d" : "#57c25b");
     luz.addColorStop(1, colorCuerpo);
     ctx.fillStyle = luz;
     ctx.beginPath();
@@ -1048,16 +1148,24 @@ function dibujar() {
     }
     ctx.fill();
 
-    // Corona de pinchos para el jefe
+    // Corona de pinchos para los jefes (la del Rey es ENORME)
     if (zombi.esJefe) {
+      const pico = zombi.esRey ? 26 : 12;
       ctx.fillStyle = "#ffd94d";
       for (let i = -2; i <= 2; i++) {
         const bx = zombi.x + i * zombi.radio * 0.35;
         const by = zombi.y - zombi.radio + 2;
         ctx.beginPath();
-        ctx.moveTo(bx - 5, by);
-        ctx.lineTo(bx, by - 12);
-        ctx.lineTo(bx + 5, by);
+        ctx.moveTo(bx - 6, by);
+        ctx.lineTo(bx, by - pico);
+        ctx.lineTo(bx + 6, by);
+        ctx.fill();
+      }
+      // Joyas de la corona del Rey
+      if (zombi.esRey) {
+        ctx.fillStyle = "#ff3366";
+        ctx.beginPath();
+        ctx.arc(zombi.x, zombi.y - zombi.radio - 4, 5, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -1073,8 +1181,8 @@ function dibujar() {
       ctx.fillStyle = "#ffd94d";
       ctx.font = "bold 16px Trebuchet MS";
       ctx.textAlign = "center";
-      const nombre = zombi.esMega ? "MEGA JEFE" : "JEFE";
-      ctx.fillText(zombi.peleando ? "¡PELEANDO!" : nombre, zombi.x, zombi.y - zombi.radio - 22);
+      const nombre = zombi.esRey ? "EL REY ZOMBI" : zombi.esMega ? "MEGA JEFE" : "JEFE";
+      ctx.fillText(zombi.peleando ? "¡PELEANDO!" : nombre, zombi.x, zombi.y - zombi.radio - (zombi.esRey ? 34 : 22));
     }
   }
 
@@ -1179,13 +1287,13 @@ function dibujar() {
   ctx.fill();
   ctx.fillStyle = "#ffd94d";
   ctx.beginPath();
-  const progreso = Math.min(1, puntos / AJUSTES.metaNivel);
+  const progreso = Math.min(1, puntos / nivel().meta);
   ctx.roundRect(173, 19, (ANCHO - 306) * progreso, 12, 6);
   ctx.fill();
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 11px Trebuchet MS";
   ctx.textAlign = "center";
-  ctx.fillText("NIVEL 1", 170 + (ANCHO - 300) / 2, 45);
+  ctx.fillText("NIVEL " + nivelActual + " — " + nivel().nombre.toUpperCase(), 170 + (ANCHO - 300) / 2, 45);
 
   // --- Las 5 estrellas coleccionadas (debajo del marcador) ---
   for (let i = 0; i < AJUSTES.estrellasMeta; i++) {
@@ -1231,7 +1339,7 @@ function dibujar() {
     ctx.textAlign = "center";
     // Cuenta atrás de la pelea en segundos
     const segundos = Math.ceil(jefeEnPelea.tiempoPelea / 60);
-    const nombre = jefeEnPelea.esMega ? "MEGA JEFE" : "JEFE";
+    const nombre = jefeEnPelea.esRey ? "EL REY ZOMBI" : jefeEnPelea.esMega ? "MEGA JEFE" : "JEFE";
     ctx.fillText("👑 " + nombre + " — " + segundos + "s", ANCHO / 2, 90);
   }
 }
@@ -1250,8 +1358,9 @@ function bucle() {
 // ================================================================
 //  EMPEZAR Y TERMINAR PARTIDAS
 // ================================================================
-function empezarPartida() {
-  // Reiniciamos todo
+function empezarPartida(numeroNivel) {
+  // Reiniciamos todo y arrancamos en el nivel que nos pidan
+  nivelActual = numeroNivel;
   fotograma = 0;
   puntos = 0;
   velocidad = AJUSTES.velocidadMundo;
@@ -1273,8 +1382,7 @@ function empezarPartida() {
   particulas = [];
   textos = [];
   distanciaPuerta = 0;
-  jefe1Salio = false;
-  jefe2Salio = false;
+  jefesSalidos = 0;
 
   encenderAudio(); // el clic en el botón nos da permiso para sonar
   document.getElementById("pantalla-inicio").classList.add("oculta");
@@ -1290,11 +1398,18 @@ function nivelCompletado() {
     record = puntos;
     localStorage.setItem("record", record);
   }
+  // ¡Desbloqueamos el siguiente nivel! (y lo guardamos en el navegador)
+  if (nivelActual < NIVELES.length - 1 && nivelActual + 1 > nivelDesbloqueado) {
+    nivelDesbloqueado = nivelActual + 1;
+    localStorage.setItem("nivelDesbloqueado", nivelDesbloqueado);
+  }
   // Las estrellas del nivel: llenas las juntadas, vacías las que faltan
   let dibujoEstrellas = "";
   for (let i = 0; i < AJUSTES.estrellasMeta; i++) {
     dibujoEstrellas += i < estrellasJuntadas ? "⭐" : "☆";
   }
+  document.getElementById("titulo-victoria").textContent =
+    "Nivel " + nivelActual + " — " + nivel().nombre + " ¡completado!";
   document.getElementById("estrellas-victoria").textContent = dibujoEstrellas;
   document.getElementById("texto-victoria").textContent =
     "Puntos: " + puntos + " — Soldados vivos: " + tropa.soldados;
@@ -1302,7 +1417,15 @@ function nivelCompletado() {
     ? "¡NIVEL PERFECTO! ¡Juntaste todas las estrellas!"
     : "Consejo: junta las 5 estrellas ⭐ para el nivel perfecto";
   document.getElementById("mensaje-estrellas").textContent = mensaje;
+  // El botón lleva al siguiente nivel (o celebra si ya no quedan más)
+  const boton = document.getElementById("boton-otra");
+  if (nivelActual < NIVELES.length - 1) {
+    boton.textContent = "▶ NIVEL " + (nivelActual + 1) + ": " + NIVELES[nivelActual + 1].nombre;
+  } else {
+    boton.textContent = "🏆 ¡JUEGO COMPLETADO! Volver al menú";
+  }
   document.getElementById("pantalla-victoria").classList.remove("oculta");
+  pintarSelector();
 }
 
 function finDePartida() {
@@ -1317,9 +1440,37 @@ function finDePartida() {
   document.getElementById("pantalla-fin").classList.remove("oculta");
 }
 
-document.getElementById("boton-jugar").addEventListener("click", empezarPartida);
-document.getElementById("boton-reintentar").addEventListener("click", empezarPartida);
-document.getElementById("boton-otra").addEventListener("click", empezarPartida);
+// El selector de niveles: un botón por nivel; los que aún no
+// desbloqueaste se ven con un candado 🔒
+function pintarSelector() {
+  const contenedor = document.getElementById("selector-niveles");
+  contenedor.innerHTML = "";
+  for (let i = 0; i < NIVELES.length; i++) {
+    const boton = document.createElement("button");
+    const bloqueado = i > nivelDesbloqueado;
+    boton.className = "nivel-boton" + (bloqueado ? " bloqueado" : "");
+    boton.textContent = bloqueado ? "🔒" : i;
+    boton.title = "Nivel " + i + ": " + NIVELES[i].nombre;
+    if (!bloqueado) boton.addEventListener("click", () => empezarPartida(i));
+    contenedor.appendChild(boton);
+  }
+}
+pintarSelector();
+
+// JUGAR arranca el nivel más alto que tengas desbloqueado
+document.getElementById("boton-jugar").addEventListener("click", () => empezarPartida(nivelDesbloqueado));
+// Tras perder, reintentas el mismo nivel
+document.getElementById("boton-reintentar").addEventListener("click", () => empezarPartida(nivelActual));
+// Tras ganar, pasas al siguiente (o vuelves al menú si era el último)
+document.getElementById("boton-otra").addEventListener("click", () => {
+  if (nivelActual < NIVELES.length - 1) {
+    empezarPartida(nivelActual + 1);
+  } else {
+    estado = "inicio";
+    document.getElementById("pantalla-victoria").classList.add("oculta");
+    document.getElementById("pantalla-inicio").classList.remove("oculta");
+  }
+});
 
 // El botón de probar sonido: enciende el audio y toca la canción de victoria
 document.getElementById("boton-sonido").addEventListener("click", () => {

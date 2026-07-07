@@ -5,6 +5,22 @@ nuevo no nos gusta, ¡podemos volver a la versión anterior!
 
 ## Las versiones (de la más nueva a la más vieja)
 
+### v1.5 — ¡6 niveles y el Rey Zombi! 🗺️👑
+- El juego ahora tiene 6 niveles con selector en el menú (los no
+  desbloqueados salen con candado 🔒 y el progreso se guarda):
+  - Nivel 0 "Entrenamiento": sin jefes.
+  - Nivel 1 "El Primer Jefe": solo el JEFE.
+  - Nivel 2 "Los Dos Jefes": JEFE + MEGA JEFE.
+  - Nivel 3 "¡Bombardeo!": aviones con 1 bomba.
+  - Nivel 4 "Lluvia de Bombas": aviones con 2 o 3 bombas.
+  - Nivel 5 "El Rey Zombi": la sorpresa — luna de sangre, zombis
+    dorados súper rápidos (valen 200 puntos) y EL REY ZOMBI: gigante,
+    rojo, con corona enorme, pelea 10 segundos, escupe en abanico
+    de 5 e invoca zombis gritando "¡A MÍ, ZOMBIS!".
+- Al ganar un nivel, el botón te lleva directo al siguiente.
+- Botón "🔊 Probar sonido" en el menú y aviso en pantalla si el juego
+  está silenciado con la tecla M.
+
 ### v1.4 — Estrellas coleccionables ⭐
 - Bajan 5 estrellas doradas por el camino durante el nivel.
 - Si las juntas todas, completas el nivel **PERFECTO** (se ve en la

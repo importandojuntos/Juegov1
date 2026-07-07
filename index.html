@@ -16,20 +16,17 @@
       <h1>ÚLTIMA GUERRA</h1>
       <h2>¡Supervivencia!</h2>
       <p>
-        Mueve tu tropa con el <b>ratón</b>, el <b>dedo</b> o las <b>flechas ← →</b>.<br /><br />
-        Pasa por las puertas <span class="azul">AZULES</span> para ganar soldados<br />
-        y evita las <span class="roja">ROJAS</span>.<br /><br />
-        El <b>Sargento Patata 🥔</b> te acompaña:<br />
-        ¡lanza patatas que explotan sobre los zombis!<br /><br />
-        <b>Misión:</b> llega a <b>6.000 puntos</b> para completar el Nivel 1<br />
-        y junta las <b>5 estrellas ⭐</b> del camino para el nivel perfecto.<br />
-        Te esperan <b>2 JEFES 👑</b> que escupen
-        <span class="azul">mocos azules</span>...<br />
-        ¡y el segundo es un MEGA JEFE con orejotas!<br /><br />
-        Cuando suene la <b>alerta aérea ✈️</b>, ¡cuidado!<br />
-        Los aviones tiran bombas que dejan <b>pozos</b> en el camino.<br /><br />
+        Mueve tu tropa con el <b>ratón</b>, el <b>dedo</b> o las <b>flechas ← →</b>.<br />
+        Puertas <span class="azul">AZULES</span> = más soldados. <span class="roja">ROJAS</span> = menos.<br />
+        El <b>Sargento Patata 🥔</b> te acompaña con su lanzapatatas.<br />
+        Junta las <b>5 estrellas ⭐</b> de cada nivel para el nivel perfecto.<br />
+        Cuidado con los <b>JEFES 👑</b> y sus mocos azules,<br />
+        los <b>aviones ✈️</b> y sus pozos...<br />
+        ¿Y en el nivel 5? Una <b>SORPRESA</b> 😈<br /><br />
         Tecla <b>M</b> = silenciar sonidos
       </p>
+      <p><b>Elige tu nivel:</b></p>
+      <div id="selector-niveles"></div>
       <button id="boton-jugar">▶ JUGAR</button>
       <button id="boton-sonido" class="secundario">🔊 Probar sonido</button>
     </div>
@@ -45,12 +42,11 @@
     <!-- Pantalla de nivel completado -->
     <div id="pantalla-victoria" class="pantalla oculta">
       <h1>🏆 ¡VICTORIA! 🏆</h1>
-      <h2>Nivel 1 completado</h2>
+      <h2 id="titulo-victoria">Nivel completado</h2>
       <p id="estrellas-victoria" class="estrellas-grandes">☆☆☆☆☆</p>
       <p id="mensaje-estrellas"></p>
       <p id="texto-victoria">Puntos: 0</p>
-      <p>El Nivel 2 llegará pronto...<br />¡programadlo juntos! 😉</p>
-      <button id="boton-otra">▶ JUGAR OTRA VEZ</button>
+      <button id="boton-otra">▶ SIGUIENTE NIVEL</button>
     </div>
   </div>
 

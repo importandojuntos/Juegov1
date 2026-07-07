@@ -12,23 +12,30 @@ Sin instalaciones, sin librerías: perfecto para aprender a programar en familia
 5. Tu tropa dispara sola: ¡destruye a los zombis antes de que te muerdan!
 6. El **Sargento Patata 🥔** va contigo y lanza patatas explosivas que caen
    sobre el zombi más cercano y hacen daño en área. ¡BOOM!
-7. **Misión del Nivel 1:** llega a **6.000 puntos** (mira la barra amarilla
-   de arriba). Por el camino te esperan **2 jefes**:
-   - **El JEFE** 👑 (a los 2.500 puntos): se planta 6 segundos y escupe
-     mocos azules que persiguen a tu tropa. ¡Esquívalos!
-   - **El MEGA JEFE** (a los 4.500 puntos): el doble de grande, con
-     orejotas que se menean, y escupe el doble de rápido y en abanico
-     de 3 mocos. Vale 1.000 puntos si lo derrotas.
-8. De vez en cuando suena una **alerta aérea ✈️** (el cartel parpadea y
-   una flecha indica por dónde vendrá): un avión enemigo cruza el cielo
-   soltando **bombas**. Cada bomba marca una **X** donde va a caer, hace
-   daño si te pilla cerca, ¡y deja un **pozo** que bloquea el paso!
-9. Por el camino bajan **5 estrellas doradas ⭐**: recógelas todas para
+7. Por el camino bajan **5 estrellas doradas ⭐**: recógelas todas para
    completar el nivel **PERFECTO** (mira tu colección debajo del marcador).
-10. Pulsa la tecla **M** para silenciar o activar los sonidos.
-11. Si te quedas sin soldados... 💀 ¡fin de la partida!
-12. Al llegar a la meta suena la **canción de victoria**: ¡tu-tu tu-ruuu
-    tu-ruuuuuuuu! 🎺
+8. Pulsa la tecla **M** para silenciar o activar los sonidos.
+9. Si te quedas sin soldados... 💀 ¡fin de la partida!
+10. Al llegar a la meta del nivel suena la **canción de victoria**
+    (¡tu-tu tu-ruuu tu-ruuuuuuuu! 🎺) y se desbloquea el siguiente.
+
+## 🗺️ Los 6 niveles
+
+| Nivel | Nombre | Qué te espera |
+|-------|--------------------|----------------------------------------------|
+| 0 | Entrenamiento | Solo zombis, para aprender. Sin jefes. |
+| 1 | El Primer Jefe | Aparece el JEFE 👑 con sus mocos azules. |
+| 2 | Los Dos Jefes | El JEFE... ¡y el MEGA JEFE con orejotas! |
+| 3 | ¡Bombardeo! | Llegan los aviones ✈️ (sueltan 1 bomba). |
+| 4 | Lluvia de Bombas | Aviones con 2 o 3 bombas + los dos jefes. |
+| 5 | El Rey Zombi | 😈 SORPRESA: luna de sangre, zombis dorados velocísimos ¡y EL REY ZOMBI gigante que invoca zombis y escupe en abanico de 5! |
+
+- Los jefes se plantan a pelear (6 segundos, el Rey 10) y escupen
+  **mocos azules** que giran y culebrean. ¡Esquívalos!
+- Las bombas de los aviones marcan una **X** donde van a caer y dejan
+  **pozos** que bloquean el paso.
+- Tu progreso se guarda: los niveles desbloqueados quedan disponibles
+  en el selector aunque cierres el navegador.
 
 También puedes jugarlo con un mini-servidor local (opcional):
 
@@ -60,11 +67,12 @@ números, guardad y recargad el navegador (F5) para ver qué pasa:
 - `duracionPelea: 720` → peleas de jefe de 12 segundos.
 - `cadaCuantoEscupe: 15` → el jefe escupe mocos como una metralleta.
 - `danoMoco: 5` → cada moco te quita 5 soldados, ¡mucho más peligroso!
-- `metaNivel: 2000` → un nivel cortito para probar rápido.
-- `jefe1Puntos: 500` → el primer jefe aparece casi al empezar.
 - `cadaCuantoAvion: 300` → ¡lluvia de aviones bombarderos!
-- `bombasPorAvion: 8` → cada avión deja el camino lleno de pozos.
 - `radioPozo: 90` → cráteres enormes que obligan a maniobrar.
+
+Y un poco más abajo está la lista `NIVELES`: ahí podéis cambiar la meta
+de puntos de cada nivel, cuándo aparece cada jefe, cuántas bombas traen
+los aviones... ¡o inventar un **nivel 6** entero añadiendo una línea!
 
 ### Retos de programación (de fácil a difícil)
 
