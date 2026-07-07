@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Última Guerra: ¡Supervivencia!</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧟</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="contenedor">
+    <canvas id="juego" width="480" height="800"></canvas>
+
+    <!-- Pantalla de inicio -->
+    <div id="pantalla-inicio" class="pantalla">
+      <h1>ÚLTIMA GUERRA</h1>
+      <h2>¡Supervivencia!</h2>
+      <p>
+        Mueve tu tropa con el <b>ratón</b>, el <b>dedo</b> o las <b>flechas ← →</b>.<br />
+        Puertas <span class="azul">AZULES</span> = más soldados. <span class="roja">ROJAS</span> = menos.<br />
+        El <b>Sargento Patata 🥔</b> te acompaña con su lanzapatatas.<br />
+        Junta las <b>5 estrellas ⭐</b> de cada nivel para el nivel perfecto.<br />
+        Cuidado con los <b>JEFES 👑</b> y sus mocos azules,<br />
+        los <b>aviones ✈️</b> y sus pozos...<br />
+        ¿Y en el nivel 5? Una <b>SORPRESA</b> 😈<br /><br />
+        Tecla <b>M</b> = silenciar sonidos
+      </p>
+      <p><b>Elige tu nivel:</b></p>
+      <div id="selector-niveles"></div>
+      <button id="boton-jugar">▶ JUGAR</button>
+      <button id="boton-sonido" class="secundario">🔊 Probar sonido</button>
+    </div>
+
+    <!-- Pantalla de fin de partida -->
+    <div id="pantalla-fin" class="pantalla oculta">
+      <h1>💀 FIN 💀</h1>
+      <p id="texto-puntos">Puntos: 0</p>
+      <p id="texto-record">Récord: 0</p>
+      <button id="boton-reintentar">↻ OTRA VEZ</button>
+    </div>
+
+    <!-- Pantalla de nivel completado -->
+    <div id="pantalla-victoria" class="pantalla oculta">
+      <h1>🏆 ¡VICTORIA! 🏆</h1>
+      <h2 id="titulo-victoria">Nivel completado</h2>
+      <p id="estrellas-victoria" class="estrellas-grandes">☆☆☆☆☆</p>
+      <p id="mensaje-estrellas"></p>
+      <p id="texto-victoria">Puntos: 0</p>
+      <button id="boton-otra">▶ SIGUIENTE NIVEL</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
