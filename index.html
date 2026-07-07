@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>El Comandante Patata V1</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>🥔 El Comandante Patata</h1>
+      <p class="subtitle">V1 — ¡Defiende la huerta con Mati!</p>
+    </header>
+
+    <div id="menu" class="screen active">
+      <div class="menu-card">
+        <div class="potato-hero">🥔</div>
+        <h2>¿Listos para la batalla?</h2>
+        <p>Los vegetales rebeldes atacan la huerta. ¡Sálvala!</p>
+        <div class="mode-buttons">
+          <button id="btn-solo" class="btn btn-primary">🎮 Jugar solo</button>
+          <button id="btn-duo" class="btn btn-secondary">👥 Jugar con Mati</button>
+        </div>
+        <div class="controls-info">
+          <div class="control-block">
+            <h3>Comandante Patata</h3>
+            <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> mover · <kbd>Espacio</kbd> disparar</p>
+          </div>
+          <div class="control-block">
+            <h3>Mati</h3>
+            <p><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> mover · <kbd>Enter</kbd> disparar</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+      <div id="hud">
+        <div class="hud-left">
+          <span id="wave-display">Oleada 1</span>
+          <span id="score-display">Puntos: 0</span>
+        </div>
+        <div class="hud-right">
+          <span id="p1-lives">🥔 ❤️❤️❤️</span>
+          <span id="p2-lives" class="hidden">🧒 ❤️❤️❤️</span>
+        </div>
+      </div>
+      <canvas id="game-canvas" width="900" height="600"></canvas>
+      <div id="game-message" class="hidden"></div>
+    </div>
+
+    <div id="gameover-screen" class="screen">
+      <div class="menu-card">
+        <h2 id="gameover-title">¡Fin de la partida!</h2>
+        <p id="gameover-score">Puntuación final: 0</p>
+        <p id="gameover-wave">Llegaste a la oleada 1</p>
+        <button id="btn-restart" class="btn btn-primary">🔄 Jugar otra vez</button>
+        <button id="btn-menu" class="btn btn-secondary">🏠 Menú principal</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/game.js"></script>
+</body>
+</html>
