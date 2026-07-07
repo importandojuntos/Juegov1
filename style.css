@@ -93,3 +93,17 @@ button:active {
   transform: translateY(4px);
   box-shadow: 0 2px 0 #1d7a1d;
 }
+
+/* Botón secundario, más pequeño (como el de probar sonido) */
+button.secundario {
+  font-size: 16px;
+  padding: 10px 24px;
+  color: #eaf2ff;
+  background: linear-gradient(180deg, #3a4a66, #26334a);
+  box-shadow: 0 4px 0 #16202f;
+}
+
+button.secundario:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #16202f;
+}

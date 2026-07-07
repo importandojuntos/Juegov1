@@ -99,6 +99,8 @@ let silencio = false;
 function encenderAudio() {
   // Los navegadores solo dejan sonar tras un clic del jugador
   if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+  // Algunos navegadores crean el audio "dormido": hay que despertarlo
+  if (audio.state === "suspended") audio.resume();
 }
 
 // Un pitido: frecuencia (grave o agudo), duración en segundos,
@@ -1191,6 +1193,14 @@ function dibujar() {
     dibujarFormaEstrella(28 + i * 26, 62, 10, 0, llena ? "#ffd94d" : "rgba(255,255,255,0.18)");
   }
 
+  // --- Aviso de silencio (por si pulsaste M sin querer) ---
+  if (silencio) {
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.font = "bold 15px Trebuchet MS";
+    ctx.textAlign = "right";
+    ctx.fillText("🔇 silenciado (pulsa M)", ANCHO - 14, ALTO - 14);
+  }
+
   // --- Cartel de ALERTA AÉREA parpadeante ---
   if (alertaAvion > 0 && Math.floor(fotograma / 12) % 2 === 0) {
     ctx.fillStyle = "rgba(200,60,20,0.75)";
@@ -1310,6 +1320,13 @@ function finDePartida() {
 document.getElementById("boton-jugar").addEventListener("click", empezarPartida);
 document.getElementById("boton-reintentar").addEventListener("click", empezarPartida);
 document.getElementById("boton-otra").addEventListener("click", empezarPartida);
+
+// El botón de probar sonido: enciende el audio y toca la canción de victoria
+document.getElementById("boton-sonido").addEventListener("click", () => {
+  silencio = false;      // por si estaba silenciado con la tecla M
+  encenderAudio();
+  sonidos.victoria();
+});
 
 // ¡Arrancamos el bucle! (aunque no dibuja nada hasta que pulses JUGAR)
 bucle();
